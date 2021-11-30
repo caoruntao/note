@@ -1,0 +1,1581 @@
+Enviroment profile
+Properties yaml
+ApplicationContext启动时添加Propert
+
+
+
+Import
+ImportSelector
+ImportBeanDifinitionRegistrar
+处理:
+ConfigurationClassPostProcessor#postProcessBeanDefinitionRegistry:
+	#processConfigBeanDefinitions:
+		ConfigurationClassParser#parse:
+			#processConfigurationClass:
+				#doProcessConfigurationClass:
+					#processImports:ImportSelector/ImportBeanDefinitionRegistrar/普通Configuration类
+		#loadBeanDefinitions:
+
+
+#populateBean:
+	#applyPropertyValues:
+		BeanDefinitionValueResolver#resolveValueIfNecessary:
+		#convertForProperty:
+		PropertyValue#setConvertedValue:
+		PropertyAccessor#setPropertyValues:
+			AbstractNestablePropertyAccessor#setPropertyValue:
+				#processLocalProperty:
+					PropertyHandler#setValue:
+						Method#invoke:
+
+
+
+
+一、网络原理
+OSI 与 TCP/IP 各层的结构与功能，都有哪些协议
+应用层：为应用程序提供服务。HTTP、HTTPS、FTP、SMTP、POP3.
+表示层：数据格式转换，数据加密解密
+会话层：建立、维持和管理会话
+传输层：建立、维持和管理端到端的连接。TCP、UDP。
+网络层：IP寻址及路由。IP协议
+数据链路层：介质访问和链路管理。
+物理层：物理层
+
+应用层
+传输层
+网络层
+物理链路层
+
+TCP 建立连接的过程，为什么要三次握手？
+	确保双方已经建立稳定的链接。在不可靠的信道进行可靠的数据传输。
+	防止已失效的连接请求报文传到服务端
+	防止Client发送连接请求，延迟到达Server，这样Client会认为是无效的，Server会认为是一个新的链接，并发送确认数据。如果不采用三次握手，这样Server会保持着连接，浪费资源
+
+TCP、UDP 协议的区别，各自的应用场景
+	面向连接。TCP是可靠的协议，会保证数据都会收到，适合数据比较重要的小数据传输。只支持点对点的数据传输。字节流。
+	无连接。UDP是不可靠的协议，只会尽量保持送达，适合数据不太重要的大数据传输。支持多播，广播。报文。
+打开浏览器，输入 URL 地址，访问主页的过程
+	访问DNS服务器，根据域名获取服务器IP，然后根据获取的IP去访问服务器
+
+HTTP 有哪些方法？
+	GET POST PUT DELETE
+
+HTTP 和 HTTPS 有什么区别？
+	HTTP的数据是明文传输的，是不安全的。80端口。
+	HTTPS的数据是由证书里公钥加密后进行传输的，是安全的。443端口。
+
+二、Java 核心技术
+HashMap 底层数据结构是什么，时间复杂度多少？
+	数组+链表。桶O(1)，链表O(n)
+	数据覆盖
+	死循环(尾插法)
+
+JDK 8 中对 HashMap 做了怎样的优化？
+	红黑树(链表查询变快)，桶长度大于64，并且链表长度大于8则变为红黑树。如果链表长度小于6则退化为链表。
+	修改尾插法为头插法(解决死循环)
+	1.8 put：
+		如果当前桶为空，则需要初始化
+		根据hash查找具体的桶，如果为空，则直接新建
+			不为空，则遍历，存在相同的key则覆盖
+				不存在，则插入(如果是红黑树，则插入红黑树结点。如果是链表，则插入在尾部插入链表结点)
+		判断是否需要转化为红黑树
+		判断是否需要扩容
+	get：
+		根据hash定位桶，然后进行遍历
+	
+
+HashMap 和 TreeMap 什么区别？
+	HashMap是数组+链表+红黑树，TreeMap是红黑树
+	HashMap是根据hashcode进行比较的，TreeMap是根据compare接口进行比较的。
+
+ConcurrentHashMap 的实现原理
+	以前是分段锁，现在是CAS+synchronized。以前链表，现在红黑树。
+
+包装类的缓存机制如何应用
+	Integer的缓存范围为-128,127，在此范围如果不是new Integer的话，那么返回的为同一对象
+
+Error 和 Exception 有什么区别？
+	Error是程序不可修复的错误，Exception是程序可以修复的错误
+
+通过一个例子描述下 BIO、NIO、AIO 三者的区别？
+	BIO：去包子铺买包子，有三个员工，每个员工只能服务一个顾客，从顾客付钱到给顾客包子，流程不走完，没办法服务下一个顾客。
+	NIO：多路复用，还是那个包子铺，一个员工负责收费，其他两个员工负责拿包子，这样子，所有的顾客都可以付钱，付完钱后通知后面的员工拿包子给客户。
+	AIO：还是那个包子铺，买包子时直接付款，然后去办其他事情，等包子准备好了，在通知顾客来取。
+
+动态代理实现有几种方式？
+	JDK动态代理，只能代理接口，继承Proxy。Proxy.newInstance，需要InvocationHandler。
+	CGLIB字节码提升，可以代理类，生成的代理类为目标类的子类。
+
+
+阐述 JDBC 操作数据库的步骤？
+	加载Driver类
+	获取Connect连接
+	生成执行语句
+	执行语句
+	获取结果
+	关闭连接
+
+Lambda 表达式有哪些应用？
+	匿名内部类(单接口)，可以方便的遍历list	
+
+三、Java 并发编程
+线程有哪几种状态？
+	创建时，准备时，运行时，结束时，阻塞时，等锁
+创建线程池需要指定什么参数？
+	核心线程数，等待队列，最大线程数，空闲时间，线程工厂，拒绝策略
+
+线程池底层如何实现，工作原理怎样？
+	Excutors->ThreadPoolExecutor->AbstractExecutorService->ExecutorService->Executor
+
+	提交一个任务时，
+		如果核心线程数没满，则创建核心线程数
+			如果已满则添加到等待队列，如果等待队列已满，
+				则看最大线程数是否已满，未满则新建线程
+					如果最大线程数已满，则根据拒绝策略拒绝任务
+
+	拒绝策略：
+		DiscardOldestPolicy:抛弃等待队列中等待时间最长的任务
+		RejectHandler:
+		AbortPolicy:抛出异常RejectedExecutionException，默认策略
+		CallerRunsPolicy:交给当前线程去做
+		DiscardPolicy:直接抛弃该任务，不报错
+		
+并发编程的三大特性：
+	原子性
+	可见性
+	有序性
+
+volatile 的实现原理是什么？
+	内存屏障，可以保证可见行和有序性
+
+Synchronized 和 Lock 什么区别？
+	Synchronized由系统决定加锁解锁的地方，Lock可以自己决定加锁解锁的地方。
+
+Java 中有哪些锁？有什么区别？
+	公平锁和非公平锁，乐观锁和悲观锁，共享锁和独占锁，自旋锁，
+	锁的状态总共有四种：无锁状态、偏向锁、轻量级锁和重量级锁
+
+Synchronized 锁升级的原理是什么？
+	https://www.cnblogs.com/paddix/p/5405678.html
+
+使用 ThreadLocal 有哪些注意事项？
+	用完要及时清除
+
+CAS 如何实现的？
+	compare and swap：乐观锁，根据期望值是否相同来判断是否操作
+
+Thread 类的 sleep() 方法和对象的 wait() 方法都可以让线程暂停执行，它们有什么区别？
+	sleep会自动苏醒，不会释放占用的锁，wait需要notify或者notifyAll唤醒，会释放占用的锁
+
+守护线程是什么？
+	依赖于普通线程，当普通线程全部退出时，守护线程也会退出
+
+说一下 Atomic 的原理？
+	乐观锁，设置前会拿以前的值去比较，如果相同则更新
+
+如何用 Java 实现生产者消费者？
+	
+Java 内存模型是什么？
+
+JMM 在并发中有什么应用？
+
+四、Java 虚拟机
+描述一下 JVM 的内存结构？
+	堆：存放对象
+	栈：存放引用
+	元空间：存放类信息
+
+Java 8 的内存分化有哪些改进？
+	永久代变成元空间，元空间可以收缩
+
+有哪些对象分配规则？
+	Java 对象创建过程
+
+描述 JVM 加载 class 文件的机制？
+
+双亲委派模型是什么？
+	先将任务给父类去执行，父类执行不了在由自己执行
+
+字节码是什么？字节码增强有哪些？
+JVM 有哪些编译优化？
+常见的垃圾回收算法和收集器有哪些？
+如何打印虚拟机堆栈信息？
+五、Spring 系列
+什么是 AOP，AOP 的作用是什么？
+	面向切面编程，在不侵入代码的前提下，对代码进行增强，比如记录日志，添加权限验证等功能。
+
+如何理解 Spring 的 IOC 和 DI？
+
+CGLIB 和 JDK 动态代理什么区别？
+	CGLIB支持类
+	JDK支持接口，继承Proxy
+
+Spring Boot 支持哪些嵌入式容器，如何配置？
+六、数据库
+MySQL 中 MyISAM 与 InnoDB 引擎的区别
+	MyISAM不支持事务
+	InnoDB支持事务
+MySQL InnoDB 的默认隔离级别是什么？
+	可重复读
+举一个数据库死锁的例子，MySQL 怎么解决死锁？
+	事务A操作表A后要去操作B表，同时事务B操作表B后要去操作A表
+
+MySQL InnoDB 存储的文件结构，为什么使用 B-Tree（B+Tree）？
+	二叉树：如果是顺序插入，则会退化为链表
+	平衡二叉树：左右深度绝对值不能超过1
+	多路平衡二叉树：一个节点存多个数据
+	B树：只有叶子节点存数据，其他节点存范围
+	B+树：叶子节点相连接，如果是范围查询，只查一次，然后随着叶子查。
+
+索引的类型有哪些？
+	Hash：对范围查询无能为力
+	Tree
+
+如何创建合理的索引，索引如何优化？
+	在使用比较频繁的字段建立索引，在数据离散度比较大的数据上建立索引，如果多个联合查询，可以考虑使用联合索引
+
+索引失效有哪几种情况？
+	使用了!= <>操作符
+	使用了or来连接条件
+	联合索引，不符合最左原则
+	使用了函数，或者类型转换，比如字符不加引号，然后函数会转换为字符，在where中进行了计算
+	like以%开头
+	扫描了NULL
+	扫描量比较大，所以进行了全表扫描
+	
+…
+七、分库分表
+为什么要分库分表？
+	分库：数据库表太多，连接非常大，将表按照业务类型放到不同的数据库中。
+	分表：单表数据量太大。
+
+如何解决分库分表主键问题？
+	不采用自增长主键，由程序控制主键的生成，比如全局唯一，按顺序生成。
+
+分库分表有哪些中间件，有什么优点和缺点？
+	shardingJDBC，优点可以提高数据库的存储量和性能，缺点，因为数据分库，所以有分布式事务问题，数据分表，数据分布在不同表要查询多个表。
+…
+八、分布式缓存
+怎么保证缓存与数据库的双写一致性
+	先删除缓存，在更新数据库，更新完数据库在删除缓存。
+
+Redis 新版本支持多线程，性能怎么样？
+
+Redis 有什么数据类型，都在哪些场景下使用？
+	String List Hash Set Zset
+Redis 的高可用有哪些机制？
+	主从，哨兵，集群
+Redis 的持久化有哪些方式？
+	RDB AOF
+Redis 过期策略都有哪些？
+	有过期时间的，最接近过期时间的
+				最少使用的
+				随机删除
+	无过期时间的，最少使用的
+				随机删除
+				不删除
+写一下 Java 版本的 LRU 代码？
+
+九、分布式服务框架
+Dubbo 的架构和服务调用过程怎样？
+
+注册中心挂了可以继续通信吗？
+	程序间可以继续通信，因为有缓存
+
+ZooKeeper 的原理是什么？
+	ZAB协议，高一执行，由主节点控制写，多个节点控制读
+
+Dubbo 支持哪些序列化协议？
+十、分布式消息队列
+消息队列有什么作用？
+	削峰，解耦，异步
+
+如何保证消息队列的高可用？
+	多节点
+
+如何保证消息不被重复消费？
+	幂等性
+
+不同消息队列的选型和对比
+
+十一、分布式系统
+CAP 理论是什么？
+	C：一致性
+	A：可用性
+	P：网络分区容错
+
+Base 理论是什么？
+	BA：基本可用
+	S：软状态
+	E：最终一致性
+
+数据一致性有哪几种？
+	强一致性
+	最终一致性
+
+分布式事务有哪些解决方案？
+	二阶段提交
+	TCC
+	SAGA
+
+如何使用 Redis 实现分布式锁？
+	做标识
+	失效时间
+	谁加锁谁解锁
+
+负载均衡有哪些常见策略？
+	随机
+	轮训
+	权重
+	Hash
+	最少连接
+
+
+1-4 5-8 9-12
+1.1-4和5-8比
+	平，说明问题小球在9-12，不知轻重
+		2.从1-4和9-12种各取3个比，如果平，则说明问题小球是剩下那个，对比正常的就知道轻重；如果不平，则知道问题小球的轻重，然后从中选两个对比，平的话，问题小球是另一个，不平的话能根据轻重判断出来
+1.1-4和5-8比不平，记录1-4的轻重
+	2.轻(1-4轻，或5-8重)：1，5，6，7 和8，3个正常的比，
+		如果平，则问题小球在2，3，4并且轻，取出两个对比就知道是那个
+		如果轻，则可能是1轻，也可能是8重
+		如果重，则可能是5，6，7重，取出两个对比就知道是那个
+	  重(1-4重，或5-8轻)：1，5，6，7和8，3个正常的比
+	  	如果平，则问题小球在2，3，4并且重，取出两个对比就知道是那个
+	  	如果轻，则说明5，6，7轻，取出两个对比就知道结果
+	  	如果重，则可能是1重，或者8轻
+
+EJBCA:
+	1.下载安装包和数据库
+	2.修改配置。在conf目录
+
+
+mysql
+	表连接
+		内连接
+			inner join
+		外连接
+			left join
+			right join
+			full join
+			先过滤，在连接
+				select t1.*, t2.* 
+				from (select * from t1 where 条件) 
+				right join t2 on 连接条件
+		交叉连接
+			cross join
+	explain/describe/desc
+spring boot
+ 自动装配
+ 	在META-INF/spring.factories中添加key为EnableAutoConfiguration全限定类名，value为你要加载的类，这样在spring boot自动装配时会将你要加载的类加载
+ 	spi
+ 		解偶，面向接口编程，具体实现类在文件中指定，方便替换。在META-INF/services下创建名字为接口全限定名的文件，内容为其要加载的实现类。
+ lambda
+ 	peek:
+ 		Consumer，无返回值，因此返回的Stream和之前的Stream一样。但是修改Stream中元素对象的属性，对象还是会发生变化的
+ 	map:
+ 		Function，有返回值，因此返回的Stream就是你的返回值组成的Stream。同时修改Stream中元素对象的属性，对象也会发生变化的。
+ 	flatmap:
+ 		将元素铺平(如Array)。如果你想将一个String，分割为一个个字符，但是你又不想接收一个Array<String>，那么你可以用flatmap，该方法会将Array的各个元素取出铺平。
+ 		List<String> collect = stringList.stream().flatMap(s -> Arrays.stream(s.split(""))).collect(Collectors.toList());
+ 		List<String[]> collect1 = stringList.stream().map(s -> s.split("")).collect(Collectors.toList());
+ webflux
+ 	reactive
+ tomcat
+ 	连接模型
+
+ PropertySource
+ jconsul
+
+
+bootstrap application
+property source
+属性覆盖 取值
+
+bootstrap加载
+
+cloud 2020  application.properties   ConfigDataEnvironmentPostProcessor
+
+resilience4j  openfeign loadbanlancer 重试 超时时间
+label
+/actuator/refresh
+
+LocatProperties   RefreshEvent
+Spring Cloud Stream/Bus
+Zipkin Sleuth
+mybatis plus
+
+配置改变，只初始化会改变值吗
+
+
+explain
+
+id   select_type   table  type  possib   key  key_len  ref  row filter  extra
+
+相同自上而下，不同大的优先
+
+SIMPLE
+PRIMARY
+SUBQUERY
+DERIVED
+UNION
+UNION_RESULT
+
+表的发生地
+
+ALL 全表扫描
+INDEX 全索引扫描
+RANGE 索引范围扫描
+REF 一般出现在join，对于前面的记录有多条匹配
+EQ_REF 一般出现在join，驱动表只返回一条记录，且这条记录是第二个表的主键或者唯一索引，且必须为not null
+CONST 主键/唯一索引,只返回一条记录
+SYSTEM 特殊的CONST，表中只有一条记录
+
+可能走的key
+
+实际走的key
+
+走的索引长度，char为  4n(urf8mb64编码集)   varchar 为4n+2(urf8mb64编码集)  可以为NULL额外加一个长度
+tiny 1 SMALLINT 2  MEDIUMINT 3 int 4 bigint 8
+
+过滤剩下的比率
+
+
+
+Spring Cloud加载:2020版之前依赖bootstrap上下文和BootstrapConfig，之后依赖BootstrapContext(用完关闭)和Bootstrapper
+	spring-cloud-context.jar
+		META-INF/spring.factories
+			org.springframework.context.ApplicationListener=org.springframework.cloud.bootstrap.BootstrapApplicationListener
+	SpringApplication#run(class, args):
+		new SpringApplication:
+			SpringApplication#getSpringFactoriesInstances:ApplicationListener
+				会去META-INF/spring.factories中找ApplicationListener实现类
+			SpringApplication#setListeners:
+				BootstrapApplicationListener implements ApplicationListener<ApplicationEnvironmentPreparedEvent>
+		SpringApplication#run:
+			SpringApplication#prepareEnvironment:
+				SpringApplicationRunListeners#environmentPrepared:
+					EventPublishingRunListener#environmentPrepared:
+						SimpleApplicationEventMulticaster#multicastEvent:发布ApplicationEnvironmentPreparedEvent事件
+
+			BootstrapApplicationListener#onApplicationEvent:
+				BootstrapApplicationListener#bootstrapServiceContext:创建bootstrap上下文，设置parent
+					SpringApplicationBuilder#run:
+					BootstrapApplicationListener#addAncestorInitializer:
+						BootstrapApplicationListener.AncestorInitializer#initialize:
+							ParentContextApplicationContextInitializer#initialize:
+								ConfigurableApplicationContext#setParent
+
+
+
+
+
+面向对象编程
+
+JVM
+	空间分布
+		堆
+		栈
+		元空间
+	类加载
+		加载  
+		链接
+			验证
+			准备
+			解析
+		初始化
+	GC垃圾回收
+		回收算法
+		垃圾回收器
+Throwable
+	Error
+	Exception
+
+final finally finalize
+	fianl:
+		class:
+			该类不可继承，因此无法修改
+			String为啥定义为final
+		method:
+			该方法不能被子类重写，可以用于保证框架内部行为不会改变
+		variable:
+			该引用不可修改，但引用指向的对象不受影响
+			immutable   List.of   
+			volatile
+		标识意义大于性能意义，或许能略微提高性能
+
+finally
+	try-catch-finally:
+		不管是否异常，都会处理finally块，通常用于释放资源
+		try{
+			// open resources
+			resource = ...
+		}catch(Exception e){
+			// handle exception
+		}finally{
+			// close resources
+			resource.close
+		}
+	try-with-resource:
+		resource需要实现Closeable接口，这样可以自动关闭资源.   Closeable extends AutoCloseable
+		try(resource)
+	有几个特殊的例子:
+		System.out()不会执行finally语句，因为JVM已经退出
+		如果finally之前有return语句，则return会保存当前现场，执行完finally在返回。如果返回的是基本类型，然后在finally修改该返回值，虽然值修改了，但是返回值不变，因为当时保存了现场数据。如果是引用类型，则只会保存对象的引用，无法保证被引用的对象不被修改。
+
+finalize:
+	Object自带的方法，可以在垃圾收集时做一些操作，如释放资源， 但是不推荐使用(JDK9标为@Deprecated)，因为
+	1.执行时间不确定，该方法由垃圾回收器调用，而垃圾回收的执行时间无法预知，如果程序终止之前都没有执行垃圾回收操作，那么该方法就不会掉用。显式调用System.gc()或Runtime.gc()方法可以促进垃圾回收的调用，但是不一定立即执行。
+	2.性能很差，在垃圾回收前调用，会占用资源，并且延缓垃圾回收的执行
+	3.finalize()方法有可能使对象复活，使它恢复到可触及状态
+	4.垃圾回收器在执行finalize()方法时，如果出现异常，垃圾回收器不会报告异常，程序继续正常运行。
+	代替方案:
+		Cleaner:使用幻像引用操作
+
+
+	克隆 序列化
+
+
+
+	String final
+	intern  11 111  
+	引用 SoftReference WeakReference PhatmoReference  ReferenceQueue
+
+	list copyandwritearraylist
+	map hashmap concurrenthashmap
+	juc
+
+	DMA:
+
+	Direact Buffer:
+		堆外内存，不由jvm管理，地址一经确定不在改变
+	Native Memory Tracking
+	Zero Copy:
+		设备->内核态->用户态->内核态->设备
+		设备->内核态->设备
+
+	volatier
+	ReentrantLock
+
+	retrelock
+	synchronized
+
+
+	锁的状态
+	锁升级
+	自旋锁
+	AQS(AbstractQueuedSynchronizer)
+	CAS(compare and swap)
+
+	死锁
+
+	互斥
+	不可释放
+	循环等待
+
+	互斥导致的死循环，cpu占用率低，可通过jconsole，jstack排查
+	死循环导致的死锁，cput占用率高，top查看高占用的pid，然后结合jstack排查
+
+
+	AQS
+	CAS
+	Unsafe
+	ReentrantLock
+
+	类加载过程
+		加载  
+		链接
+			验证
+			准备
+			解析  
+		初始化
+
+	加载器
+		Boot
+		Platform
+		Application
+
+	双亲委派
+
+	动态代理
+		动态生成字节码
+		ASM
+		CGLIB
+
+	JVM
+		程序计数器
+		栈
+			JVM栈
+			本地方法栈
+		堆
+			包装类缓冲池
+		元空间
+
+		GC
+			标记算法
+				引用计数
+				根可达
+			回收算法
+				复制
+				标记-回收
+				标记-整理
+			垃圾收集器
+				Serial
+				Parnew
+				CMS
+				Parallel
+				G1
+
+				Serial Old
+
+
+		happen-befor
+		JMM
+
+		docker限制jvm
+		java安全 sql注入
+
+
+
+		Autowired
+			执行
+		Resource
+			顺序
+		优先级
+			AutowiredAnnotationBeanPostProcessor:Ordered.LOWEST_PRECEDENCE - 2
+			CommonAnnotationBeanPostProcessor:Ordered.LOWEST_PRECEDENCE
+
+		aop
+
+		Aspect:
+			PointCut
+				ClassFilter
+				MethodMatcher
+			
+			JoinPoint
+
+			Adice
+				BeforeAdvice
+				AfterAdvice
+					AfterAdvice
+						AfterReturningAdvice
+						AfterThrowingAdvice
+				AroundAdvice
+
+			Advice -AdvisedSupport-> Adivsor -AdvisorAdapter-> MethodInterceptor
+
+		
+
+
+			
+
+
+Spring batch
+
+	Job:Step 1:n
+
+	Job: n
+		JobInstance: n
+			Job + JobParameters
+			JobExecution: n
+				JobInstance每执行一次会生成一个JobExecution，因为JobInstance可能失败，因此会有多个JobExecution
+
+	Step: n 
+		StepExecution
+
+
+	ItemReader
+	ItemProcesser
+	ItemWriter
+
+	JobRegistry
+
+	JobLauncher
+
+
+	BlockingQueue
+		exception  return specialvalue
+		add        offer
+		remove     poll
+		element    peek
+
+	Executor
+		ExecutorService
+			AbstractExecutorService
+				ThreadPoolExecutor:
+					ThreadPoolExecutor#ThreadPoolExecutor(corePoolSize, maximumPoolSize, keepAliveTime, TimeUnit, BlockingQueue workQueue, ThreadFactory, RejectedExecutionHandler)
+
+				RejectedExecutionHandler:
+					1.AbortPolicy(default):Always throws RejectedExecutionException. 
+					2.DiscardPolicy:Does nothing, which has the effect of discarding task r.
+					3.CallerRunsPolicy:Executes task r in the caller's thread, unless the executor has been shut down, in which case the task is discarded.
+					4.DiscardOldestPolicy:Obtains and ignores the next task that the executor would otherwise execute, if one is immediately available, and then retries execution of task r, unless the executor is shut down, in which case task r is instead discarded.
+
+		Executors#newSingleThreadExecutor():
+			new FinalizableDelegatedExecutorService (new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>()));
+		Executors#newFixedThreadPool(int):
+			new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
+		Executors#newCachedThreadPool():
+			new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
+		Executors#newScheduledThreadPool():
+			new ScheduledThreadPoolExecutor(corePoolSize);
+		Executors#newWorkStealingPool:
+			new ForkJoinPool(parallelism, ForkJoinPool.defaultForkJoinWorkerThreadFactory, null, true);
+
+			线程在任务提交时才会实例化，运行时抛出异常，则会销毁线程
+		
+
+		ForkJoinPool:把一个大任务拆成多个小任务并行执行。
+		CompletableFuture:使用Future获得异步执行结果时，要么调用阻塞方法get()，要么轮询看isDone()是否为true，这两种方法都不是很好，因为主线程也会被迫等待。从Java 8开始引入了CompletableFuture，它针对Future做了改进，可以传入回调对象，当异步任务完成或者发生异常时，自动调用回调对象的回调方法。
+		多个CompletableFuture可以串行执行,前者的输出可以作为后者的输入.
+
+
+		JVM对象只在heap上?
+
+		@ConfigurationProperties
+			ConfigurationPropertiesBindingPostProcessor
+			ConfigurationPropertiesBinder
+			JavaBeanBinder
+
+			EnvironmentChangeEvent
+			ConfigurationPropertiesRebinder
+
+		@RefreshScope
+			BeanLifecycleWrapperCache
+
+			每次获取时向缓存中放(putIfAbsent)值(ObjectFactory),之前取过bean，则继续取之前的，没有的话则通过ObjectFactory(createBean)获取
+				更新时将缓存中的值删除掉，就重新取
+			AbstractBeanFactory#doGetBean
+				GenericScope#get
+				
+			每次
+
+
+
+JAVA:
+	面向对象
+		封装，继承，多态
+	跨平台
+		源代码(.java) - javac -> 字节码(.class) - jvm -> 机器码。
+		每个平台都有对应的JVM，因此可以跨平台执行。
+	类加载:
+		1.加载: 根据类的全限定名将该类的字节码加载到内存，生成代表该类的Class对象
+		2.链接:将创建好的Class对象合并到JVM
+			验证:确保class文件中的字节码符合JVM的要求，确保类的正确性
+			准备:为类的静态字段分配内存，并设置默认值。被final修饰的static字段不会设置，因为在编译时就分配了。
+			解析:
+		3.初始化:执行类的构造器方法init()的过程。这个方法不需要定义，是javac编译器自动收集类中所有类变量的赋值动作和静态代码块中的语句合并来的。
+
+		加载器:
+			1.Bootstrap:加载Java核心类库。用C/C++语言实现的，因此获取不到相应信息。出于安全考虑，启动类只加载包名为：java、javax、sun开头的类。
+			2.Platform:从系统属性：java.ext.dirs目录中加载类库，或者从JDK安装目录：jre/lib/ext目录下加载类库。我们就可以将我们自己的包放在以上目录下，就会自动加载进来了。
+			3.Application:它负责加载环境变量classpath或者系统属性java.class.path指定路径下的类库。它是程序中默认的类加载器，我们Java程序中的类，都是由它加载完成的。
+
+			双亲委派:资源隔离，可能造成资源冗余
+				当类加载器接收到了类加载的请求，它自己不会先加载，而是让父加载器加载，如果父加载器也存在父类加载器则继续向上委托，一直到Bootstrap。父加载器加载失败时将由子类去尝试加载，如果加载失败，则抛出ClassNotFoundException异常。
+	执行:
+		将源码编译为字节码，然后JVM将字节码 解释 为机器码。
+			这样启动的时候会很快，但是执行的时候会慢。
+		编译器:
+			将 源代码 转换成 机器语言，通常是 二进制形式(机器码) 并保存下来(复用)，等待执行。目的是生成 可执行的程序。
+			优点:
+				因为提前编译生成 机器码，所以直接执行 编译后的文件即可，因此速度较快。
+			缺点:
+				源代码编译后只能在该类机器上运行，无法跨平台。
+		解释器:
+			在程序运行时，将源代码转换为 机器语言(机器码)，并立即执行。
+			工作模式:
+				1.分析源代码，并且直接执行。
+				2.把源代码翻译成相对更加高效率的中间码，然后立即执行它。
+				3.执行由解释器内部的编译器预编译后保存的代码。
+			优点:
+				跨平台性，因为无需编译，因此只要解释器支持多平台，就有跨平台性。
+			缺点:
+				运行速度慢，解释器要额外的开销。
+
+		为了提高运行效率，JAVA也提供了 直接编译为机器码的 机制。
+			JIT(Just In Time): 即时编译器
+				运行时，将热点代码的字节码 提前编译为机器码并保存下来，后续直接调用机器码，而无需解释执行，提高程序运行效率。
+					热点代码:
+						运行时，当某一方法调用次数达到即时编译定义的阈值时，可以将该方法认为 热点代码。
+					编译器:
+						C1编译器:client模式，根据1500次的收集计算出热点代码。启动性能好，适合启动快的客户端。
+						C2编译器:server模式，根据10000次的收集计算出热点代码。峰值性能好，适合长期运行的服务端。
+			AOT(Ahead-of-Time Compilation):
+				运行之前，将应用中或JDK中的字节码编译成机器码(与即时编译器有区别)
+		参数:
+			-Xmixed:混合模式
+			-Xint:解释
+			-Xcomp:编译
+
+	final/finally/finalize
+		final:
+			修饰类:不可继承
+			修饰方法:不可重写
+			修饰字段:不可重新赋值
+
+			标识意义大于性能意义
+		finally:
+			try-catch-finally使用，确保代码一定会执行到
+		finalize:
+			在对象被回收前做一些特点的动作，如释放资源，但是不推荐使用。
+			该方法由垃圾回收器在回收该对象前调用，调用时机无法预测，而且非空的finalize方法会导致相关的垃圾回收变慢，原本这个此次垃圾收集周期应该回收的对象，可能要多经过几次周期才能回收
+			Cleaner
+
+
+		immutable类实现注意事项:
+			1.final修饰类
+			2.字段用private final修饰
+			3.如非必要，不提供getter方法，如果提供getter，则使用copy
+			4.构造对象时，成员变量使用深克隆来初始化
+
+	String 
+
+
+	异常处理需要注意
+细节问题
+
+AOP Interceptor顺序
+	BeanFactoryAspectJAdvisorsBuilder
+	MethodInvocation
+	ReflectiveMethodInvocation
+
+引用
+Strong Reference:
+	强引用，平常创建对象时的引用，有强引用存在时，对象不会被回收，哪怕OOM(OutOfMemory)。
+Soft Reference:
+	软引用，比强引用弱一些，软引用指向的对象会在OOM前进行统一的回收，回收完如果还不够，则会OOM。
+Weak Reference:
+	弱引用，每次垃圾回收时都会进行回收，可以结合ReferenceQueue使用，这样对象在回收时可以在ReferenceQueue找到，使用弱引用获取对象并且用强引用指向会使对象复活。
+Phantom Reference:
+	幻影引用，每次垃圾回收时都会回收，通过幻影引用获取不到指向的对象，只能结合ReferenceQueue使用做一些回调机制。
+Reference#reachabilityFence可以保持可达性，@since 9
+
+
+String StringBuffer StringBuilder
+intern 
+immutable
+
+
+代理
+	反射:introspection
+		运行时获取类和对象的信息，可以调用对象的方法
+	字节码:asm，cglib
+基本数据类型和包装类
+	基本数据类型及大小
+	基本数据类型线程不安全，i++
+	包装类的职责，缓存范围
+	包装类的value不可变
+	对象大小
+	泛型
+
+	int 范围
+有序集合
+	Vector
+	ArrayList
+	LinkedList
+
+	Collection
+		List Set Queue
+
+全局变量赋予局部变量
+	相当于缓存，字节码会少一些
+Map
+Cas synchronization
+同步异步/阻塞非阻塞
+	 从进程级通信的维度讨论时， 阻塞和同步（非阻塞和异步）就是一对同义词， 且需要针对发送方和接收方作区分对待
+		发送方阻塞:发送方进程会被一直阻塞， 直到消息被接收方进程收到
+		发送方非阻塞:发送方进程调用 send() 后， 继续其他操作
+		接收方阻塞:接收方调用 receive() 后一直阻塞， 直到消息抵达
+		接收方非阻塞:接收方调用 receive() 函数， 要么得到有效消息， 要么得到空值， 不会被阻塞
+	系统IO:
+		用户态 -> 内核态 -> 硬件(数据准备阶段)
+		阻塞非阻塞:
+			用户态 -> 内核态，阻塞会一直等着内核态数据准备完成，非阻塞不会等内核态数据准备完成。因为从内核态复制到用户态的时间不能省去，因此属于同步
+		同步异步:
+			内核态 -> 硬件，异步什么时间也不用等，直接告诉系统数据放到哪里，然后内核态会在数据准备好之后将数据复制到指定位置。
+
+		阻塞IO
+		非阻塞IO
+		IO复用
+			reactor
+		信号IO
+		异步IO
+
+DMA：
+	直接内存访问，需要硬件支持。用户进程(用户态)没有权限执行IO操作，需要系统进程帮忙(内核态)，系统进程会操作CPU参与IO操作，这样CPU就不能做其他事情。
+	DMA就不需要CPU参与，只需要CPU发送相关指令给DMA，DMA会负责IO操作，CPU就可以做其他事情。DMA需要硬件支持，需要硬件集成一个小型'CPU'。
+RDMA：
+	硬件和用户态内存(app buffer)直接交互。需要硬件和软件支持
+zero copy:
+	用户态(app buffer)->内核态(kernel)->用户态(app buffer)->内核态(缓存区)
+	硬件<->内核态：DMA
+	内核态<->用户态：CPU
+
+			用户态
+		内核态    内核态
+	磁盘               网卡
+
+	如果用户进程不对数据进行修改，完全可以不用做内核态和用户态的复制
+
+频繁切换线程上下文是同步阻塞低扩展性的限制
+LongAdder
+AtomicInteger.getAndIncrement
+	Unsafe#compareAndSet
+	Unsafe#compareAndSwapInt
+
+Atomic类:
+	volatile保证可见性和有序性
+	CAS保证原子性 Unsafe
+
+文件复制:
+	Stream
+	Channel:在linux平台可能会用到zero-copy(零复制)
+	java标准库:本地方法的用户态复制
+
+	Buffer:
+		capacity,limit,position,mark
+		Direct Buffer:堆外
+		MappedByteBuffer:将磁盘的文件内容映射到用户态的空间，程序可以直接操作数据
+
+抽象类和接口:
+	相同点:
+		都不能直接使用
+	不同点:
+		抽象类是单继承的(extend)，接口可以是多实现(implement)，接口之间可以多继承
+		抽象类可以单纯的标记为abstract class，没有抽象方法，但是接口必须要有
+		抽象类可以有成员变量和具体方法，接口只能有静态常量(public static final)，不能有具体方法(JDK8开始支持default method)
+		只有一个抽象方法的接口可以标记为@FunctionalInterface
+
+面向对象:
+	封装/继承/多态
+	重写(方法名，参数，返回值必须相同)/重载(方法名和返回值相同，方法参数不同)
+	原则:
+		单一原则
+		开闭原则
+		里氏置换
+		接口分离
+		依赖倒置
+
+
+postProcessProperties
+
+
+org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver#getExceptionHandlerMethod
+doResolveHandlerMethodException
+
+
+DispatcherServlet
+	FrameworkServlet
+		HttpServletBean
+			HttpServlet
+				GenericServlet
+
+@ExceptionHandler处理过程 v5.3.5
+	HttpServletBean#init
+		FrameworkServlet#initServletBean
+			FrameworkServlet#initWebApplicationContext
+				DispatcherServlet#onRefresh
+					DispatcherServlet#initStrategies:
+						DispatcherServlet#initHandlerExceptionResolvers:
+							DispatcherServlet#getDefaultStrategies:HandlerExceptionResolver.class
+								去DispatcherServlet.properties找对应实现。ExceptionHandlerExceptionResolver
+								DispatcherServlet#createDefaultStrategy:
+									AutowireCapableBeanFactory#createBean:
+										ExceptionHandlerExceptionResolver#afterPropertiesSet:
+											ExceptionHandlerExceptionResolver#initExceptionHandlerAdviceCache:查找@ControllerAdvice中的 @ExceptionHandler
+												ControllerAdviceBean#findAnnotatedBeans:
+													BeanFactoryUtils#beanNamesForTypeIncludingAncestors:Object.class
+													ListableBeanFactory#findAnnotationOnBean:ControllerAdvice.class
+												new ExceptionHandlerMethodResolver:
+													MethodIntrospector#selectMethods:ExceptionHandler.class
+													ExceptionHandlerMethodResolver#detectExceptionMappings:能处理的异常类型
+													ExceptionHandlerMethodResolver#addExceptionMapping
+
+	HttpServlet#service:
+		FrameworkServlet#doGet:以get请求为例
+			FrameworkServlet#processRequest:
+				DispatcherServlet#doService:
+					DispatcherServlet#doDispatch:
+						DispatcherServlet#processDispatchResult:
+							DispatcherServlet#processHandlerException:
+								HandlerExceptionResolver#resolveException: ExceptionHandlerExceptionResolver
+									AbstractHandlerMethodExceptionResolver#doResolveException:
+										ExceptionHandlerExceptionResolver#doResolveHandlerMethodException:
+											ExceptionHandlerExceptionResolver#getExceptionHandlerMethod:
+												exceptionHandlerCache:@Controller本身含有的ExceptionHandler
+													new ServletInvocableHandlerMethod
+												exceptionHandlerAdviceCache:@ControllerAdvice所含有的ExceptionHandler
+													new ServletInvocableHandlerMethod
+											ServletInvocableHandlerMethod#invokeAndHandle:
+												InvocableHandlerMethod#invokeForRequest:
+													Method#invoke
+
+
+DispatcherServlet#doService:
+
+
+
+设计模式:
+	工厂，单例，代理，委派
+		单例:spring bean，BeanFactory层面唯一，如果是分层，当前查不到，则去父级查找
+
+	构建型
+	结构型
+	行为型
+
+synchronized和重入锁
+	偏向锁和重入锁
+
+锁的状态:
+	无锁
+	偏向锁:标识，记录获取锁的线程ID，如果相同线程来执行，则直接获取锁
+	轻量级锁:CAS+自旋，适合同时并发不多的情况，可以在等待很短的时间内获取到锁
+	重量级锁:操作系统的互斥锁，需要进行用户态到内核态的切换，因此开销很大。获取不到锁线程会阻塞挂起
+并发并行:
+	并发:同时发生，交替执行
+	并行:同时运行，需要多CPU
+ReentrantLock:
+	可重入锁，以线程为单位，而不是以每次调用为单位，如果两个方法用的同一把锁，则在执行其中一个方法时可以不用重新获取直接执行另一个方法。泛指可重复可递归调用的锁，可以避免死锁。
+ReadWriteLock:
+	读写锁，读锁共享，写锁独占，两者互斥。悲观读
+StampedLock:
+	乐观读
+
+
+加锁在try外面:
+	如果加锁异常，则在finally释放锁时会抛出IllegalMonitorStateException，而且没有对应的异常处理，则异常信息会被生吞。
+
+安全点Safe point
+
+线程状态:
+	NEW:new出来的状态
+	RUNABLE:资源准备状态(CPU时间片/其他资源)，可能在等待资源，也可能在运行
+	BLOKING:获取不到锁，阻塞
+	WAITING:
+	TIMED_WAIT:超时等待
+	TERMINATED:意外退出或者正常结束
+	同时调两次start()，会抛出IllelThreadStateException
+
+	ThreadLocal：
+		Thread -> ThreadLocalMap<WeakReference<ThreadLocal>, Object>
+		ThreadLocalMap的key为弱引用，垃圾回收时扫描到就会回收，key变为null，但是value还存在，且无法访问，最好提前手动remove或者等线程销毁回收(线程池不会销毁线程，最好不要和ThreadLocal搭配使用)ThreadLocalMap，否则会出现内存泄漏。jdk为了最大程度避免内存泄漏，在get/set时会回收key为null对应的value.
+死锁:
+	互斥条件：一个资源每次只能被一个进程使用
+	请求与保持条件：一个进程因请求资源而阻塞时，对已获得的资源保持不放
+	不剥夺条件:进程已获得的资源，在末使用完之前，不能强行剥夺
+	循环等待条件:若干进程之间形成一种头尾相接的循环等待资源关系
+
+	死锁时CPU占用不会特别高
+	获取锁后进行死循环时，CPU占用较高
+
+	jstack 打印栈信息，然后查找block或者wait，根据查找到的锁ID进行查找
+	ThreadMXBean  ManagementFactory#getThreadMXBean
+	ThreadMXBean#findDeadlockedThreads
+	ThreadMXBean#getThreadInfo(long[])
+
+
+	JUC各个数据结构及工具类
+	锁
+		ReentrantLock
+		ReadWriteLock
+		StampleLock
+		锁条件
+			Condition
+	结构:
+		CourrentHashMap
+		AtomicInteger
+		AddrLong
+		BlokingQueue
+
+		CopyOnWriteArrayList
+
+	工具:
+		CountDownLatch
+			#countDown,#await,适合一个线程等其他线程工作完毕，不可恢复。
+		CyclicBarrier
+			#await,适合多个线程并行等待，可自动恢复。
+		Semaphore
+			#acquire,#release
+
+
+
+	原理:
+		volatile
+		CAS
+		AQS
+
+有界/无界:
+	队列有固定大小就是有界
+
+
+
+
+Spring validator
+	分组校验:
+		@NotBlank(message="", groups = {clazz})
+		Field
+
+		@Validated({clazz})
+
+	顺序校验(静态指定要校验的分组):
+		@GroupSequence({clazz1, clazz2, 本身class})
+		Class
+			@NotBlank(message="")
+			Field
+			@NotBlank(message="", groups = {clazz1})
+			Field
+			@NotBlank(message="", groups = {clazz2})
+			Field
+
+		@Validated
+		clazz1校验不通过，不会校验clazz2
+
+	自定义顺序校验(动态指定要检验的分组):
+		@GroupSequenceProvider
+		Class
+			DefaultGroupSequenceProvider#getValidationGroups:自定义要校验的分组，要包含需要校验的输入类本身，否则default分组就不会执行
+ 
+9.28
+	AQS / 类加载
+
+	类加载:
+		类加载的
+
+9.29
+	java 目录:/jre /jre/ext
+
+10.8
+	JVM内存分布:
+			线程独占:
+				程序计数器
+					保存当前正在执行的指令地址
+				栈
+					虚拟机栈
+					本地方法栈
+						保存基本数据类型和对象的引用，单位栈帧，栈帧包括局部变量表，操作数栈，返回地址，动态链接，指向运行时常量池的引用
+
+			线程共享:
+				堆
+					保存对象的实例，GC的主要工作地，JDK8及以后也放置intern缓冲池
+				永久代
+					JDK7及之前的，JDK8被移除。存放类元信息等，也存放intern缓冲池
+				元空间
+					JDK8及以后。存放类元信息，可自动改变大小
+		逃逸分析
+			判断哪些对象是可以存储在栈内存中而不用存储在堆内存中的，从而让其随着线程的消逝而消逝，进而减少了 GC 发生的频率，这也是常见的 JVM 优化技巧之一
+		内存泄漏
+
+git push <远程主机名> <本地分支名>:<远程分支名>
+git branch -d (branchname)
+
+10.9
+	查看JVM堆使用
+	垃圾回收器
+		Serial GC
+		ParNewGC
+		Parallel GC
+		CMS
+		G1
+
+10.11
+	G1:
+		将堆分为大小相同的region，一般为2048个，可以自适应调整
+		region逻辑上分为，Edon，Surivivor，Old，Humongous(可以看作Old，存放对象大于50%region的超大对象，对象非常大时会连续占用多块)
+		Remebered Set:存放region中对象的引用关系，如老年代指向新生代的对象
+		MinorGC  -> Concurrent Mark  -> MiexedGC
+			MinorGC:回收新生代,复制算法
+			Concurrent Mark:并发标记Old区域的对象
+			MiexedGC:回收未被标记的对象，不包括Humongous区域，因为Humongous更加激进在MinorGC时会回收了，因为Humongous区域较少，通过查记录可以快速得知老年代有没有引用，新生代在MinorGC时也可知有没有引用，因此在MinorGC时就回收了。
+	GC调优:
+		确定调优目的，低延迟，高吞吐量，低内存占用
+		查看当前GC的信息
+		所选的垃圾回收器是否符合目的，符合的话，看局部情况，然后通过参数调整，多次尝试
+
+10.12
+	JMM:
+		JMM就是Java内存模型(java memory model)	
+			因为在不同的硬件生产商和不同的操作系统下，内存的访问有一定的差异，所以会造成相同的代码运行在不同的系统上会出现各种问题。所以JMM屏蔽掉各种硬件和操作系统的内存访问差异，以实现让java程序在各种平台下都能达到一致的并发效果。
+
+		JMM规定所有的变量都存储在主内存中，包括实例变量，静态变量，但是不包括局部变量和方法参数。每个线程都有自己的工作内存，线程的工作内存保存了该线程用到的变量和主内存的副本拷贝，线程对变量的操作都在工作内存中进行。线程不能直接读写主内存中的变量。
+
+
+		内存交互操作	
+			线程  <-(use) 工作内存  <-(load) <-(read) 主内存 lock
+			线程 <-> 工作内存 <-> 主内存
+			线程  (assign)-> 工作内存  (store)-> (write)-> 主内存 unlock
+
+		 	规则:
+		 		不允许read、load、store、write操作之一单独出现，也就是read操作后必须load，store操作后必须write。
+				不允许线程丢弃他最近的assign操作，即工作内存中的变量数据改变了之后，必须告知主存。
+				不允许线程将没有assign的数据从工作内存同步到主内存。
+				一个新的变量必须在主内存中诞生，不允许工作内存直接使用一个未被初始化的变量。就是对变量实施use、store操作之前，必须经过load和assign操作。
+				一个变量同一时间只能有一个线程对其进行lock操作。多次lock之后，必须执行相同次数unlock才可以解锁。
+				如果对一个变量进行lock操作，会清空所有工作内存中此变量的值。在执行引擎使用这个变量前，必须重新load或assign操作初始化变量的值。
+				如果一个变量没有被lock，就不能对其进行unlock操作。也不能unlock一个被其他线程锁住的变量。
+				一个线程对一个变量进行unlock操作之前，必须先把此变量同步回主内存。
+
+		volatile：
+			1.保证线程间变量的可见性。
+				值更新后立刻同步到主内存，然后使其他线程中的缓存失效，使其重新读取值
+			2.禁止CPU进行指令重排序。
+				as-if-serial，不管怎么重排序，（单线程）程序的执行结果不能被改变。
+				为了使指令更加符合CPU的执行特性，最大限度的发挥机器的性能，提高程序的执行效率，只要程序的最终结果与它顺序化情况的结果相等，那么指令的执行顺序可以与代码逻辑顺序不一致，这个过程就叫做指令的重排序。
+				重排序的种类分为三种，分别是：编译器重排序，指令级并行的重排序，内存系统重排序。
+
+				volatile禁止指令重排序含义：
+					当程序执行到volatile变量的读操作或者写操作时，在其前面的操作的更改肯定全部已经进行，且结果已经对后面的操作可见，在其后面的操作肯定还没有进行。
+					在进行指令优化时，不能将在对volatile变量访问的语句放在其后面执行，也不能把volatile变量后面的语句放到其前面执行。
+				volatile禁止指令重排序原理：
+					内存屏障：
+						LoadLoad 屏障：对于这样的语句Load1，LoadLoad，Load2。在Load2及后续读取操作要读取的数据被访问前，保证Load1要读取的数据被读取完毕。
+						StoreStore屏障：对于这样的语句Store1， StoreStore， Store2，在Store2及后续写入操作执行前，保证Store1的写入操作对其它处理器可见。
+						LoadStore 屏障：对于这样的语句Load1， LoadStore，Store2，在Store2及后续写入操作被刷出前，保证Load1要读取的数据被读取完毕。
+						StoreLoad 屏障：对于这样的语句Store1， StoreLoad，Load2，在Load2及后续所有读取操作执行前，保证Store1的写入对所有处理器可见。
+
+					在每个volatile读操作后插入LoadLoad屏障，在读操作后插入LoadStore屏障。
+					在每个volatile写操作的前面插入一个StoreStore屏障，后面插入一个SotreLoad屏障。
+
+			非线程安全的，因为无法保证原子性
+
+
+
+	并发三要素:
+		原子性
+			原子性指的是一个操作是不可分割，不可中断的，一个线程在执行时不会被其他线程干扰。
+		可见性
+			可见性指当一个线程修改共享变量的值，其他线程能够立即知道被修改了。
+
+			除了volatile关键字之外，final和synchronized也能实现可见性。
+			synchronized的原理是，在执行完，进入unlock之前，必须将共享变量同步到主内存中。
+			final修饰的字段，一旦初始化完成，如果没有对象逸出（指对象为初始化完成就可以被别的线程使用），那么对于其他线程都是可见的。
+		有序性
+			在Java中，可以使用synchronized或者volatile保证多线程之间操作的有序性。实现原理有些区别：
+
+			volatile关键字是使用内存屏障达到禁止指令重排序，以保证有序性。
+				volatile写之前加StoreStore，之后加StoreLoad
+				volatile读之后加LoadLoad，LoadStore
+			synchronized的原理是，一个线程lock之后，必须unlock后，其他线程才可以重新lock，使得被synchronized包住的代码块在多线程之间是串行执行的。
+
+		AtomicLong:利用volatile(可见性，有序性) + CAS(UNSAFE，原子性)
+			内部有volatile修饰的long，还有UNSAFE(用于底层操作，如CAS)
+
+	Docker镜像结构:
+		UnionFs(联合文件系统):是一种分层、轻量级并且高性能的文件系统，他支持对文件系统的修改作为一次提交来一层层的叠加，同时可以将不同目录挂载到同一个虚拟文件系统下。Union文件系统是Docker镜像的基础。镜像可以通过分层来进行继承，基于基础镜像（没有父镜像），可以制作各种具体的应用镜像。
+
+		镜像由一层一层文件系统组层，这种层级的文件系统是UnionFs。
+			bootfs(boot file system) 主要包含bootloader 和 kernel，bootloader 主要用于引导加载 kernel，当 kernel 被加载到内存中后 bootfs 会被 umount 掉。
+			rootfs (root file system) 包含的就是典型 Linux 系统中的/dev，/proc，/bin，/etc 等标准目录和文件。
+
+			不同的 linux 发行版（如 ubuntu 和 CentOS ) 在 rootfs 这一层会有所区别，体现发行版本的差异性。
+
+10.13
+	代码安全
+		注入攻击，如SQL，XML
+		DOS攻击，伪造大量哈希值相同的数据，使其发生大量碰撞
+		加密解密
+		权限鉴权
+	服务器变慢
+		如何排查
+	lambda
+		基准测试
+
+10.14
+	数据库隔离级别
+	Spring生命周期和作用域
+
+	Spring @Autowired时机
+		AutowiredAnnotationBeanPostProcessor#postProcessProperties，和Properties一起处理
+	Spring Bean 设置初始化方法
+		@PostConstruct(CommonAnnotationBeanPostProcessor)
+		InitializingBean#afterPropertiesSet
+		@Bean(initMethod=)
+	Spring Bean生成策略
+		SimpleInstantiationStrategy利用反射获取构造器创建
+
+	先被代理，后被异步代理:
+		被代理的对象会 implement SpringProxy，Advised，DecoratingProxy
+		AbstractAdvisingBeanPostProcessor#postProcessAfterInitialization:
+			如果bean instanceof Advised
+				就转换为Advised，然后把当前的Advisor加进去
+
+10.22
+	@Bean后标记@Order并不会影响被扫描的顺序，而是影响集合注入的顺序
+	Spring事件，了解事件的含义，确定事件的监听体系，确保各个监听器不互相干扰。
+	Spring Bean实现了AutoCloseable，在销毁时会自动调用close方法
+
+	事件体系
+10.25
+	url解析匹配
+	@RequestParam/@PathVariable
+	类型转换，StringToNumberConverterFactory，@DataTimeFormat
+	同名参数，绑定到数组，然后,分割
+
+10.26
+	Header，用MultiMap(header key区分大小写)，HTTPHeaders
+	Context-Type
+		Header Accept
+		@RequestMapping(products)
+	Conversion
+		TypeConverter
+10.27
+	HttpMessageConversion
+10.28
+	@Valid
+	ApplicationFilterChain
+
+	Filter顺序问题:
+		@Component   OrderedFilter
+		FilterRegistrationBean
+11.1
+	Spring Security
+	添加角色的方法，角色前缀
+11.2
+	ExceptionHandlerResolver 执行流程
+	ExceptionHandlerResolver 和 HandlerMapping 注册逻辑
+	@ConditionalOnClass
+11.3
+	RedisTemplate 序列化器
+	Cassandro 副本 读取规则
+	Cassandro 创建多个Session
+
+	@Cacheable/@CacheEvit/@CachePut/@Caching
+11.4
+	事务 rollback=
+	private方法修饰符 不支持事务
+	事务传播级别 REQUIRE_NEW NESTED
+11.5
+	Request MultiValueMap
+	Url参数 编码
+	Url 避免多次编码
+	@RequestParam
+11.8
+	@ImportResource(classpath):Indicates one or more resources containing bean definitions to import.
+	@PropertySource:Annotation providing a convenient and declarative mechanism for adding a PropertySource to Spring's Environment
+	@MockBean
+11.9
+	加载顺序
+		Around.class, Before.class, After.class, AfterReturning.class, AfterThrowing.class
+	Spring AOP为什么只支持方法级别
+	Filter顺序问题:
+		@Component   OrderedFilter
+		FilterRegistrationBean
+11.10
+	堆排序
+	时间复杂度，空间复杂度
+	Unicode规定了字符的映射规则，没有规定存储规则。汉字在UTF16中占两个字节
+11.11
+	时间复杂度，表示数据规模和执行所需时间的关系，常见有O(1),O(log n),O(n),O(nlog n),o(n2)。
+		因为log 3 = log 3 2 * log 2 n。同理其他底的也可以换算，因此统称O(log n)。
+		加法规则:
+			相同规模的时间复杂度可以舍弃量级较小的时间复杂度，如O(n2 + n)，可以留作O(n2)
+			不同规模的时间复杂度不可以舍弃，因为不知道哪个规模较小。如O(m + n)。
+		乘法规则:
+			需要保留。如O(n * n)，留作O(n2)。
+		其他规则:
+			因为系数，常量不影响 数据规模和执行所需时间的关系，因此可以省略
+11.12
+	最好时间复杂度
+	最坏时间复杂度
+	平均时间复杂度
+	均摊时间复杂度
+
+	数组满了就扩容(原来的两倍)，初始10
+		最好:O(1)
+		最坏:O(n)
+			i正好为扩容的那次，扩容为原来的两倍
+			10   +  20      + 40     + 80  + ... + i
+			10(2^0) 10(2^1) 10(2^2)  10(2^3) ... 10(2^ log 2 i/10)
+			等比数列求和: a1(1-q^n) / 1-q 
+				代入: 10(1-2 * log 2 i/10) / -1 = 10 - n / -1 = n - 10，O(n)
+		均摊:
+			1 + i/(i - log 2 i/10), O(1)
+		
+11.15
+	线性表：
+		保存简单的前后节点关系。如数组，链表，队列，栈。
+	非线性表：
+		不是简单的前后节点关系。如二叉树，图。
+	数组
+		结构：
+			线性表(简单的前后关系)，空间连续
+		特点：
+			用下标进行随机访问效率很高，因为用 首地址+要存取的下标*单位字节大小 就可以定位到内存地址。
+			由于非尾部插入需要移动插入节点以后的数据，因此效率低，但是对于尾部添加，因为无需移动数据，因此效率也很高。
+			如果数组对顺序没有要求，可以将党建要插入位置的节点移到尾部，然后插入节点。
+			可以批量延迟删除。先标记，等位置不够了在清除。
+	链表
+		结构：
+			线性表，空间不连续(使用索引指向后面的节点)
+		特点：
+			插入效率较高，因为无需移动数据，只需将要插入节点的索引进行修改即可。
+			查询效率较低，因为空间不连续，需要遍历查找。
+			只保存后续节点的叫单向链表，保持前后节点的叫双向链表。
+
+	列表
+		结构：
+			线性表
+		特点：
+			对数组进行了封装，简化了操作(插入，动态扩容)，损耗了一点性能(不能保存基本类型，自动装箱拆箱)。
+11.16
+	数组实现LRU
+	单链表的回文字符串
+	单链表反转   1
+	删除链表倒数第n个节点 1
+	链表的中间节点  1
+	两个有序链表合并  1
+	链表中环检测
+11.17
+	栈：FILO
+		结构：
+			顺序栈：
+				数组实现
+			链式栈：
+				链表实现
+		类型：
+
+	队列：FIFO
+		结构：
+			顺序队列：
+				数组实现，有界
+			链式队列：
+				链表实现，无界
+		类型：
+			循环队列：解决数据搬移问题。
+				队空条件:head = tail
+				队满条件:(tail+1)%n=head
+					tail指下一个元素应该插入的位置，为什么不能用head = tail来作为队满条件呢，如果队空条件会和队满条件一样，这样队空的时候也不能添加数据。(tail+1)%n=head会使队列内有一个空间不能存储数据。
+			阻塞队列：适合生产者-消费者模型
+			并发队列：适合多线程
+11.18
+	递归：
+		出口条件
+		规则
+	排序：
+		冒泡排序：
+			相邻元素比较，按照规则交换
+			稳定(相同元素不会交换顺序)，原地排序(空间复杂度O(1))，时间复杂度O(n^2)
+		插入排序	
+			每次从无序区取出元素然后比较，放入合适的位置，该位置之后的元素后移
+			稳定(相同元素不会交换顺序)，原地排序(空间复杂度O(1))，时间复杂度O(n^2)
+		选择排序
+			从未排序的值中找出极值，放入对应位置
+			不稳定(每次找到最小值会和对应下标的值交换)，原地排序(空间复杂度O(1))，时间复杂度O(n^2)
+
+		有序度
+		逆序度
+11.19
+	归并排序：
+		递归+合并，将数组递归从中间分为两个子数组，直至子数组只含有一个元素，然后依次合并为有序数组
+		稳定，非原地排序(O(n))，时间复杂的O(nlogn)
+			4 2 0 1 5 3
+			4 2 0 1  ｜      5 3
+			4 2  ｜  0 1     5 ｜ 3
+			4 ｜ 2    0 ｜ 1    3 5
+			2 4   0 1   3 5
+            0 1 2 4     3 5
+            0 1 2 3 4 5
+	分而治之思想
+11.22
+	快速排序：
+		递归+分区，取一基准(通常为最后一个元素)，然后遍历数组，将小于基准的放入前面，大于基准的放入后面，然后对基准前面的数组和基准后面的数组分区，直到整个数组有序
+		不稳定，原地排序(O(1))，时间复杂度(O(nlogn)，最坏O(n^2))
+			4 2 0 1 5 3
+			2 4 0 1 5 3
+			2 0 4 1 5 3
+			2 0 1 4 5 3
+			2 0 1 3 5 4
+			2 0 1 3   |  5  4
+			3 0 1 2   |  4  5
+			0 3 1 2   |  4  5
+			0 1 3 2   |  4  5
+			0 1 2 3   |  4  5
+
+	有序数组快速排序时间
+		1 2 3 4 5 6     n
+		6 | 2 3 4 5 1   n - 1
+		6 1 | 3 4 5 2   n - 2
+		6 1 2 | 4 5 3   n - 3
+		6 1 2 3 | 5 4   .
+		6 1 2 3 4 | 5   .
+		6 1 2 3 4 5     .
+
+		n + n-1 + n-2 + ... + 1= (n + 1) / 2 * n = O(n^2) 
+
+	第N大元素时间
+		堆排序 O(K * logn)
+
+	10个按时间戳排序的300M日志文件，如何在内存为1G的机器中合并排序
+11.23
+	线性排序：
+		桶排序 O(n)
+			根据数据值的范围划分几个桶，将数据均匀的分布在各个桶内，桶内使用快排或者其他排序算法，因为各个桶之间天然有序，所以遍历每个桶进行合并。
+			如消费金额排序，每1000分为一个桶，如果分布不均匀，可以将数据量大的桶再次细化分桶，桶内排序后然后合并。
+		计数排序 O(n)
+			桶排序的变种，因为数据范围有限，所以每个值都划分为一个桶，然后遍历每个桶进行合并。
+			如考试成绩排序，按照分数分为0-100，将分数放入对应的桶里，然后遍历合并。
+		基数排序 O(n)
+			将数据拆分，然后按照稳定排序，从最后一位依次排序。
+			如电话号码排序，电话号码拆分为11位，高位天然大于地位，然后从最后一位开始排序，直到最高一位。
+
+11.24
+ 	二分查找
+ 		有序数组(根据下标随机访问)。
+ 		mid的取值，范围条件，范围取值
+ 	链表二分查找时间复杂度
+ 	数的平方根，精确到小数后六位
+11.25
+	二分查找变形
+		查找第一个等于该值
+		查找最后一个等于该值
+		查找第一个大于该值
+		查找最后一个小于该值
+
+	IP查找
+	循环数组查找
+
+	二叉树
+11.26
+	跳表
+		每3个抽一个
+11.29
+	散列表
+		哈希值为非负整数
+		key相同，hash相同
+		key不同，hash不同
+	工业散列表要求
+		快速查询，插入，删除
+			要求哈希函数能均匀分布
+			 >>>
+		内存占用合理	
+			负载因子，动态扩容
+		极端情况下也能保持良好的性能
+			哈希冲突解决方案
+				开放寻址
+					适合数据小
+				链表
+					适合数据大，链表可以用红黑树等结构提升性能
+11.30
+	散列表+链表:
+		散列表定位位置，可以快速查找，添加，删除；链表可以快速顺序便利。
+		结构:
+			head data next(双向链表)
+			hnext(存在散列表中链表(桶)的下一个节点)
+
+	哈希算法
+		MD5消息摘要算法,SHA安全散列算法。不同长度数据都会映射成定长数据。
+		原理
+			抽屉原理(引发哈希冲突)
+		用途：
+			数据唯一:
+				唯一标识
+				数据校验
+			计算下标:
+				散列函数
+				负载均衡
+				分布式缓存
+		
+	对称算法
+		DES,AES
+	非对称算法
+		RSA,ECC
