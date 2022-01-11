@@ -1781,3 +1781,20 @@ git reset：
 	interreput:
 		主动轮训
 		被动通知，wait(),sleep()等方法需要捕获InterruptedException。当调用java.lang.Thread#interrupt时，阻塞的线程会被唤醒然后抛出InterruptedException，此时中断标识会被清空，需要手动调用java.lang.Thread#interrupt再次设置中断标识。
+1.4
+	StampedLock，
+	CountDownLatch，CyclicBarrier
+		CountDownLatch:一个线程等其他线程
+		CyclicBarrier:多个线程互相等待。可以设置回调函数，回调函数由该回合最后一个调用await方法的线程执行，执行完才能进行下一轮。
+1.5
+	并发容器
+		COW家族，Dequq双端队列
+	原子类，乐观锁，CAS
+1.6
+	线程池
+	Future，FutureTask
+1.7
+	CompletableFuture,CompletionStage
+	CompletionService,ExecutorCompletionService
+1.10
+	Fork/Join
