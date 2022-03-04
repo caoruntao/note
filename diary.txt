@@ -1798,3 +1798,136 @@ git reset：
 	CompletionService,ExecutorCompletionService
 1.10
 	Fork/Join
+1.11
+	Immutable模式(解决并发最简单的方法)，属性final修饰，只提供读方法。如果要提供修改方法，生成新对象。享元模式可以解决对象过多。
+	COW，写时复制，延迟策略。
+1.12
+	ThreadLocal
+	guarded suspension
+	cron 表达式
+1.13
+	Balking
+1.17
+	分工模式
+		Thread pre message:
+			轻量级线程。Fiber
+		Thread worker:
+			线程池
+		生产者-消费者模型:
+			平衡生产者和消费者的速度差。适合批量数据处理(如数据库插数据)，分阶段提交。
+1.18
+	线程终止:
+		二阶段终止模式:
+			发送终止指令(设置标识位)。响应终止指令(while条件语句)。
+			while(flag){
+			   break;
+			}
+		毒丸:
+			投入一个约定结束的任务，消费者执行到该任务时终止。
+	优雅关闭线程:
+		线程执行完run方法或者抛出异常结束。关闭线程可以设置标识位,注意处理interrupt。
+		try{
+			while(flag){
+			   break;
+			}
+		} catch(InterruptedException e){
+			Thread.currentThread().interrupt();
+		}
+	线程池关闭:
+		shutdown:
+			不接新任务，会把当前正在执行的任务和队列中的任务执行完。
+		shutdownNow:
+			不接新任务，会尝试中断所有正在执行的任务，剥夺队列中任务的执行机会，这些任务(中断+剥夺)会作为shutdownNow()方法的返回值返回。
+				中断任务不一定成功，因为只有sleep,await,Condition情况下的线程会响应interrupt。
+	Guava Ratelimit:
+
+1.19
+	Disruptor:
+		CPU缓存，伪缓存，无锁(CAS)。
+		伪缓存:
+			CPU是按行缓存的(64字节)。同一个类的A，B字段都被CPU缓存了，然而一个线程对A进行修改时，会使A所在的缓存行失效，而B可能在该行内，所有B也会失效。解决办法，填充字节(会浪费空间)。
+1.20
+	HikariCP
+		FirstList
+
+		ConcurrentBag:
+			CopyOnWriteArrayList<T> sharedList;共享队列
+			ThreadLocal<List<Object>> threadList;本地线程持有列表
+			AtomicInteger waiters;线程等待数
+			SynchronousQueue<T> handoffQueue;线程分配器
+
+			add
+			borrow
+			requite
+1.21
+	STM(Software Transaction Memory),MVCC
+	协程
+	
+2.10
+	JPA查询实体部分属性，可以创建一个interface，加上想要查询属性的get方法即可。
+
+2.14
+	Paas 打包难题  Docker镜像(提供完整的操作系统文件目录，本地环境和云环境高度一致)  Fig(Compose，编排) Swarm(集群管理能力)
+2.15
+	Kubernetes 容器编排技术 暴露各阶段API供操作(开发者友好)
+	Cgroups资源限制，Namespace资源隔离
+2.16
+	Namespace共享内核，内核有很多资源不可Namespace化，如时间。如果容器修改了时间，宿主机的时间也会变。
+	Cgroups Linux Controll Group(sys/fs/cgroup目录下查看)，/proc目录不知道Cgoups限制，top命令显示的是宿主机的数据。lxcfs
+	容器，单进程模型，不能同时运行两个应用，可以找个公共程序充当父进程，如systemd/supervisord。但是如果子进程(应用进程)挂了，容器感知不到。不符合容器和应用进程同生共死的概念。
+	Docker镜像  rootfs分层 只读层(核心文件) init层(hostname等) 读写层
+	只读层ro+wh，读写层rw。init层是一些需要修改的只读层文件，但是提交时不需要提交(如hostname)，就单独的列出来了。提交时只提交读写层。如果需要修改只读层文件，在读写层做就可以了，文件在使用时会从上至下搜索，在读写层找到就返回了。
+2.17
+	Dockerfile 原语 build push commit exec(setns())      /proc/pid/ns
+2.21
+	Volumn bind mount
+2.22
+	kubernetes 编排 调度 brog  master(apiserver,schedule,controller) node kubelet CRI CNI CSI
+	master控制中心 node计算中心 kubelet和容器交互 etc存储
+	Pod Service Deployment Secrt
+2.23
+	kubeadmin kubelet宿主机，其他组件容器化 preflight checks
+2.24
+	stain/tolerate
+2.25
+	Volumns volumnMount
+	EmptyDir HostPath
+2.28
+	Docker单进程模型，能启动多个进程，但无法管理多个进程
+	Pod是逻辑概念，共享Network Namespace&Volumns，先启动一个Infra容器(200K)，然后Pod中的进程挂载到Infra的Network Namespace&Volumns。
+3.1
+	容器的本质是进程。容器设计模式sidecar，pod sidecar辅助容器，initContainer
+	Pod属性，Nodeselect NodeName HostAliases
+	container属性，Image ports volumemiunts imagepullpolicy Lifecycle
+
+	Projected volume  Secret/ConfigMap/Downward Api/serviceAccountToken  
+3.2
+	ServiceAccountToken(Pod如果不指定，则会有一个默认的ServiceAccountToken，Volume:default-token-xxx) 
+	Probe restart(重新创建) restartpolicy(Always/OnFailure/Never)
+	Podpreset 多个合并，冲突放弃
+	Pod如果允许restart，则一直是running。pod含多个容器时，所有容器异常时，pod状态才会变为faild
+
+	kubernetes/pkg/controller可以看到所有的控制器，这是控制器模式，遵守控制循环control loop流程，完成自己的编排逻辑
+	循环中通过比较实际情况和期望情况对pod做一些新增，删除，或者什么也不做。实际情况是k8s中当前pod的数量，期望情况是所有控制器中所设置的pod副本数
+	控制循环，主动，轮训
+3.3
+	Deployment 副本数量，水平扩展，活动更新 
+	Deployment ResplicaSet Pod
+	kubectl rollout status/undo/history
+	kubectl edit 
+	kubeneters API对象
+	metadata: API对象通用属性
+		lables
+		annotation
+	spec: API对象独有属性
+		selector
+	 		matchLable
+3.4
+	StatefulSet 
+	拓扑状态  Headless Service
+		Service
+			Virtual IP
+			Headless Service:     ClusterIp:None
+				NormalService:Virtual IP
+				DNS: podname.servicename.namespace.svc.cluster.local
+	存储状态 
