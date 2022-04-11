@@ -30,7 +30,6 @@ ConfigurationClassPostProcessor#postProcessBeanDefinitionRegistry:
 
 
 
-
 一、网络原理
 OSI 与 TCP/IP 各层的结构与功能，都有哪些协议
 应用层：为应用程序提供服务。HTTP、HTTPS、FTP、SMTP、POP3.
@@ -766,6 +765,9 @@ JAVA:
 	跨平台
 		源代码(.java) - javac -> 字节码(.class) - jvm -> 机器码。
 		每个平台都有对应的JVM，因此可以跨平台执行。
+	静态代码块，构造代码块，构造函数
+	B extend A
+	A静态代码块、B静态代码块、A构造代码块、A构造函数、B构造代码块、B构造函数
 	类加载:
 		1.加载: 根据类的全限定名将该类的字节码加载到内存，生成代表该类的Class对象
 		2.链接:将创建好的Class对象合并到JVM
@@ -1177,7 +1179,7 @@ Spring validator
 git push <远程主机名> <本地分支名>:<远程分支名>
 git branch -d (branchname)
 
-工作区  add  暂存区  commit 版本库   push  远程仓库
+工作区(workspace)  add  暂存区(index/stage)  commit 仓库(repository)   push  远程仓库(remote repository)
 git reset：
 	--mixed：默认，会重置暂存区和版本库(工作区文件和暂存区文件不会删除，需要重新add)
 	--soft：会重置版本库(工作区文件和暂存区文件不会删除，需要重新commit)
@@ -1911,7 +1913,7 @@ git reset：
 	循环中通过比较实际情况和期望情况对pod做一些新增，删除，或者什么也不做。实际情况是k8s中当前pod的数量，期望情况是所有控制器中所设置的pod副本数
 	控制循环，主动，轮训
 3.3
-	Deployment 副本数量，水平扩展，活动更新 
+	Deployment 副本数量，水平扩展，活动更新 restartPolicy:Always
 	Deployment ResplicaSet Pod
 	kubectl rollout status/undo/history
 	kubectl edit 
@@ -1922,7 +1924,7 @@ git reset：
 	spec: API对象独有属性
 		selector
 	 		matchLable
-3.4
+3.7
 	StatefulSet 
 	拓扑状态  Headless Service
 		Service
@@ -1930,4 +1932,93 @@ git reset：
 			Headless Service:     ClusterIp:None
 				NormalService:Virtual IP
 				DNS: podname.servicename.namespace.svc.cluster.local
+		StatefulSet 严格按照编号顺序启动，以此保证拓扑顺序
 	存储状态 
+		PVC是声明，如果有对应的实现，可以直接使用，简化了开发人员对Volume编写。
+		PV(Persistent Volume) PVC(Persistent Volume Claim)。每个pod都会挂载一个PV，而且PV编号和Pod编号一致。
+3.8
+	kubernetes mysql主从集群实践
+		server-id
+		bin-log   binary log dump Thread(主节点) I/O Thread(从节点) SQL Thread(从节点)
+3.9
+	StatefulSet是一个特殊的Deployment
+	InitContainer先于containter启动，切按照顺序启动。containter启动顺序不固定，谁都可以先启动
+	因为containter是单进程模型，且Pod共享network namespace和volume namespace，因此可以启动一个容器做sider辅助工作，需要注意的是容器之间启动顺序不固定
+	做初始化操作时一定要考虑清楚重启是否有影响
+3.10
+	DaemonSet 会将Pod放到每一个node上，且只存在一个，节点扩展时会在新的Node上添加，收缩时会从移除的node上删除
+	Daemon Controller会去etcd获取node信息，然后遍历，多则删除，少则添加。添加是通过NodeAffinity，daemon创建的pod会容忍污点，因此可以在任何一个node上创建
+	DaemonSet 创建的pod一般用于网络或存储插件。当node有污点时，处于不可调度状态，普通的pod不会在该node上调度，但是daemon pod容忍污点，因此可以调度。
+3.11
+	BatchJob CronJob   batch/v1
+	一次性作业(restartPolicy只能为Never/OnFailure)。restartPolicy:Never/Onfaiure。backofflimit指pod异常时最多尝试创建几次，activedeadlineseconds指Pod最多运行多久 。
+
+	ln链接：可以理解为文件别名，一处修改处处修改	
+		硬连接: ln source target
+			1.以文件副本的形式存在，但不占实际空间(target显示的大小和source一致)
+			2.source只能为文件
+			3.只能同文件系统才能创建
+		软连接: ln -s source target
+			1.以路径的形式存在，target存的是source的地址
+			2.可以跨文件系统
+			3.可以对不存在的文件名进行链接
+			4.source可以是文件，也可以是目录
+
+			使用ls -l查看时，软链接target会指向source
+
+	Docker 批量删除
+		docker images | grep "none" | awk '{print $3}' | xargs docker rmi
+3.15
+	BatchJob
+		spec.completions需要几个任务完成
+		spec.parallelism并行数量
+		WorkQueue任务分发
+
+	声明式API (kubectl apply支持多个写操作同时进行，因为是PATCH) 
+	 
+	(Dynamic Adminssion Controller)  Initializer Istio的Initializer会在创建pod时添加envoy容器(merge)
+3.16
+	InitializerConfiguration 指定哪些对象需要初始化，会在新创建的这些对象metadata(lable/annotation)上添加initializer对象的名字，标识还未初始化，初始化后会去掉
+3.21
+	RBAC。Role、ClusterRole、RoleBinding 和 ClusterRoleBinding。ServiceAccount，Scret。
+	Operator(控制器，根据编程做一些任务)。
+		先创建CRD(custom resource definition)对象。
+		然后Operator(控制器)在loop时控制CR对象。
+	Operator statefulSet 可以协同工作
+3.22
+	PVC(Persistent Volume Claim)，PV(Persistent Volume)，Storeclass相同的PVC和PV才有可能Bind。
+	Attach(挂载存储设备) Mount(将存储设备挂载到卷上)。
+	Static Provision:由运维人员根据PVC一个一个创建PV
+	Dynamic Provision:编写一个StoreClass，声明存储类型，存储插件。这样PVC声明时会找到对应的StoreClass，然后StoreClass创建PV。
+
+	LPV 延迟绑定 （Static Provision）
+3.23
+	CSI 
+		external components
+			driver register:注册插件信息
+			external provisioner:根据PVC创建PV
+			external attacher:attach操作
+		custom CSI
+			CSI Identity:CSI相关信息
+			CSI Controller:创建PV和attach操作
+			CSI Node:mount操作
+3.24
+		基础网络环境构成:网卡 回环设备 路由表 iptables
+		容器网络。Veth Pair网卡。拟网桥docker0。Overlay Network
+		ARP(Address Resolution Protocol)。RARP(Reverse Address Resolution Protocol)。
+3.28
+	bgp  下一跳(将宿主机当作路由器)  将真正目的地mac封装到数据帧中
+3.30
+	Service DNS iptables ipvs
+	ClusterIP Service 为pod提供固定的vip。Headless Service为pod提供固定的dns名字。
+	Nodeport SNAT client访问哪个node就由哪个node回复。
+	
+	Nodeport宿主机映射。适合私有云。
+	LoadBalancer负载均衡。适合公有云(都使用了CloudProvider的转接层)，调用CloudProvider在公有云创建一个负载均衡服务。
+	ExternalName。添加CNAME记录。
+4.11
+	资源模型和资源管理。spec.containers.resources.requests/limits.cpu/memory。cpu单位m，1000m=1CPU。memory单位M(1000)/Mi(1024)。资源限制通过Cgroups实现。
+	cpu是可压缩资源，资源不够时，pod会处于饥饿状态。memory是不可压缩资源，资源不够时，pod会被kill掉。
+	QoS模型，同时设置limits和requests(单独设置limits相当与也设置了requests)，并且两者值相等的称为Guaranteed。只设置了requests被称为Burstable类型。都没设置称为BestEffort。当宿主机资源紧张时，k8s会对Pod进行Eviction(资源回收)，Eviction分为Soft和Hard，Soft允许你设置一段“优雅时间”，当资源不足超过这个时间段，kubelet才会开始Eviction。Hard会在达到阈值时直接触发
+	Eviction会依次回收BestEffort、Burstable（饥饿的资源使用量超过requests）、Guaranteed（超过了limits/宿主机处于Memory Pressure）。宿主机处于Memory Pressure时会被打上污点，防止pod在调度在这上面。
+	
