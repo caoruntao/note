@@ -817,6 +817,7 @@ JAVA:
 			-Xmixed:混合模式
 			-Xint:解释
 			-Xcomp:编译
+			
 
 	final/finally/finalize
 		final:
@@ -2021,4 +2022,81 @@ git reset：
 	cpu是可压缩资源，资源不够时，pod会处于饥饿状态。memory是不可压缩资源，资源不够时，pod会被kill掉。
 	QoS模型，同时设置limits和requests(单独设置limits相当与也设置了requests)，并且两者值相等的称为Guaranteed。只设置了requests被称为Burstable类型。都没设置称为BestEffort。当宿主机资源紧张时，k8s会对Pod进行Eviction(资源回收)，Eviction分为Soft和Hard，Soft允许你设置一段“优雅时间”，当资源不足超过这个时间段，kubelet才会开始Eviction。Hard会在达到阈值时直接触发
 	Eviction会依次回收BestEffort、Burstable（饥饿的资源使用量超过requests）、Guaranteed（超过了limits/宿主机处于Memory Pressure）。宿主机处于Memory Pressure时会被打上污点，防止pod在调度在这上面。
-	
+4.15
+	Priority   
+		PriorityClass(不超过1billion，超出的为系统使用)。priorityClassNam.
+	Preemption
+		高优先级的pod调度失败后会抢占低优先级pod的资源，发生抢占时，低优先级的pod会被清理掉，因为删除pod调用DELETE API，所以有优雅停机时间，高优先级的pod不会立刻调度到低优先级所在的pod上，而是在对高优先级的pod设置nomitaedNodeName，等到下轮调度时在执行调度。当然，下轮调度会因为新增node或者其他pod被删除，导致pod不一定会调度到nomitaedNodeName指定的node。如果有更高优先级的pod，高优先级的nomitaedNodeName会被清理掉。
+		acvtiveQ(存放正常调度的pod)，unschedulableQ(存放调度失败的pod)
+4.16
+	Spring AOP
+		PointcutAdvisor
+			PointCut:用于判断是否需要代理
+				ClassFilter:类过滤器
+				MethodMatcher:方法匹配器
+			Advisor:增强的行为
+				Advice -> AdvisedSupport -> Adivsor -> AdvisorAdapter -> MethodInterceptor
+				Adice
+					BeforeAdvice
+					AfterAdvice
+						AfterAdvice
+							AfterReturningAdvice
+							AfterThrowingAdvice
+					AroundAdvice
+
+		ProxyFactory#getProxy:
+			AopProxyFactory#createAopProxy:
+				JdkDynamicAopProxy
+				ObjenesisCglibAopProxy
+
+		AnnotationAwareAspectJAutoProxyCreator
+
+
+		Aspect:
+			PointCut
+				ClassFilter
+				MethodMatcher
+			
+			JoinPoint
+
+			Adice
+				BeforeAdvice
+				AfterAdvice
+					AfterAdvice
+						AfterReturningAdvice
+						AfterThrowingAdvice
+				AroundAdvice
+
+			
+
+	Spring Boot 自动配置:
+		在resouce目录下,创建META-INF/spring.factories文件，写入key-value键值对，key为EnableAutoConfiguration的全限定类名，value为要自动导入的类的全限定类名。被自动导入的类会被加载为一个Spring Bean处理。
+
+	@Inherited，在类继承关系中，子类会继承父类中标记@Inherited的注解。
+7.8
+	并发编程：分工、同步、互斥
+		分工：将任务合理分配给线程。Excecutor、ForkJoinPool
+		同步：线程之间协作，如线程之间信号同步。wait()、notify()、notifyAll()、Semaphore、CountDownLatch、CyclicBarrier、Condition。
+		互斥：对同一资源同一时刻只能一个线程访问。synchronized、Lock。
+	并发问题：可见性、有序性、原子性
+		可见性：数据的变化在线程间共享(针对CPU缓存问题)。
+		有序性：防止指令重排序。
+		原子性：一组CPU执行操作是不可分割，要么都执行，要么都不执行(高级编程语言中的一个指令可能对应多个CPU指令)。
+		volatile可以保证可见性和有序性性。UnSafe CAS可以保证原子性。两者组合就是Atomic类。
+7.13
+	操作系统使用信号量解决并发问题，Java选择使用管程（Monitor）解决并发问题，具体实现是Synchronized。管程和信号量是等价的，可以使用管程实现信号量，也可以使用信号量实现管程。
+	管程就是指管理共享变量，以及对共享变量的相关操作。具体到 Java 语言中，管程就是管理类的成员变量和方法，让这个类是线程安全的。管程的发展史中，先后出现过三种管程模型，Hasen 模型、Hoare 模型和 MESA 模型，Java 使用的是 MESA 模型，对应的实现是Synchronized。
+	MESA解决互斥问题：
+		将共享变量及对共享变量的操作统一封装起来，一次只允许一个线程访问(设置入口等待队列)。对应Synchronized(Object)。
+	MESA解决同步问题：
+		条件变量和条件变量等待队列。对应Object.wait、Object.notify。MESA 模型中，条件变量可以有多个，Java 语言内置的管程(Synchronized)里只有一个条件变量。Java SDK 并发包实现的管程(Lock)支持多个条件变量。
+		编程范式，因为wait()被唤醒返回后是从wait()之后的代码开始执行，但是notify()唤醒时条件满足，wait()返回时条件可能又不满足，所以需要在检测一边。
+		while(条件不满足){
+			wait();
+		}
+	当T2的操作使T1的条件满足时，三个模型的通知方式不同：
+		Hasen 模型：不中断T2，当T2执行完在唤醒T1。需要将notify放到代码最后。
+		Hoare 模型：中断T2，唤醒T1，T1执行完在唤醒T2。相比于Hasen 模型多了一个唤醒操作，但是无需将notify放到代码最后。
+		MESA 模型：不中断T2，当T1条件满足，将T1从条件变量等待队列放入入口等待队列。不保证T1一定能执行，因此wait方法支持超时参数。
+
+
