@@ -1,0 +1,407 @@
+1、SPRING AOP 底层原理 
+AOP(ASPECT Ori Program)，是一种在不修改代码的情况下对功能进行增强，常见的做法是使用代理。
+代理分为两类，jdk动态代理(接口)，cglib字节码提升(类)。
+Aspect PointCut(MethodMatcher/ClassFilter) Advance  
+Advance -> AdvanseSupport -> Advansor -> PointCutAdvansor
+2、HASHMAP 的底层数据结构是怎样的 ? 
+JDK1.7及之前 数组+链表
+JDK1.8之后  数组+链表(红黑树)。当数组长度大于64，且bin(链表)长度大于8，则会变为红黑树。
+3、HASHMAP 的扩容机制是怎样的?23 
+阈值=负载因子 * 容量。默认负载因子为0.75，当容量达到4/3时，会扩容为原来的2倍。
+
+位运算: 
+<< 左移  丢弃左边指定位数，右边补0
+>> 右移  丢弃右边指定位数，左边补上符号位
+左移/右移会先做求余处理在做位移处理(int求余32，long求余64)。
+>>> 无符号右移，丢弃右边指定位数，左边补上0。
+
+tableSizeFor：向上取整返回2的幂整数
+   Integer.numberOfLeadingZeros:返回最高非0位前面0的个数。
+   然后对-1无符号右移，然后加1
+   -1 -> 1111 1111 1111 1111 1111 1111 1111 1111
+
+JDK7及之前会初始化数组
+JDK8及之后首次put才会初始化数组
+4、CONCURRENTHASHMAP 的存储结构是怎样的?23 
+JDK1.7之前是分段锁
+JDK1.8之后是synchronized+CAS
+
+ForkJoinPool
+5、线程池大小如何设置? 24 
+计算密集型 CPU + 1。比 CPU 核心数多出来的一个线程是为了防止线程偶发的缺页中断， 或者其它原因导致的任务暂停而带来的影响
+IO密集型 CPU * 2。DMA(Direct Memory Access，直接存储器访问)，不需要CPU参与。
+6、IO 密集=NCPU*2 是怎么计算出来?24 
+IO密集型代表大部分时间在做IO传输，CPU利用率很少，因此数量要多点。
+7、G1 收集器有哪些特点?24 
+G1:Garbage-First。设计目标:将 STW 停顿的时间和分布，变成可预期且可配置的。
+将JAVA heap划分为若干个大小相同的区域(默认2048)，即Region，包括Eden、Surivor、Old、Humongous。
+Humongous是特殊的Old类型，用于存放大对象(单个大小大于50%的对象，对象非常大时会连续占用多块)。
+GC Roots:类静态属性中引用的对象、常量引用的对象、虚拟机栈中引用的对象、本地方法栈中引用的对象。
+步骤:
+   1.Initial Mark
+      其实就是YongGC。该阶段会引起STW，它会标记GC Roots可达的对象。
+   2.Root Region Scan
+      根区域扫描。该阶段不会引起STW，它会并发地从上一阶段标记的存活区域中扫描被引用的老年代对象。
+   3.Concurrent Mark
+      并发标记。该阶段从堆中标记存活的对象，于CMS(Concurrent Mark Sweep)类似。
+   4.Remark
+      重新标记。该阶段会引起STW，于CMS类似。它会完成最终的标记处理。
+   5.Cleanup 
+      为Mixed GC做准备。该阶段会统计所有堆区域中的存活对象，并将等待回收区域按照回收价值排序，优先回收垃圾最多的区域。
+
+   G1:
+      将堆分为大小相同的region，一般为2048个，可以自适应调整
+      region逻辑上分为，Edon，Surivivor，Old，Humongous(可以看作Old，存放对象大于50%region的超大对象，对象非常大时会连续占用多块)
+      Remebered Set:存放region中对象的引用关系，如老年代指向新生代的对象
+      MinorGC  -> Concurrent Mark  -> MiexedGC
+         MinorGC:回收新生代,复制算法
+         Concurrent Mark:并发标记Old区域的对象
+         MiexedGC:回收未被标记的对象，不包括Humongous区域，因为Humongous更加激进在MinorGC时会回收了，因为Humongous区域较少，通过查记录可以快速得知老年代有没有引用，新生代在MinorGC时也可知有没有引用，因此在MinorGC时就回收了。
+   GC调优:
+      确定调优目的，低延迟，高吞吐量，低内存占用
+      查看当前GC的信息
+      所选的垃圾回收器是否符合目的，符合的话，看局部情况，然后通过参数调整，多次尝试
+
+查看GC情况:jstat -gcutil pid interval
+STW。多线程定位，多线程收集？
+8、你有哪些手段来排查 OOM 的问题? //TODO 
+jdump 导出统计，然后分析
+
+9、请你谈谈 MYSQL 事务隔离级别，MYSQL 的默认隔离级别是什么?25 
+读未提交：可能引发脏读、不可重复读、幻读。
+读已提交：解决脏读。A读了B未提交的数据，然后B数据回滚引起的脏数据。
+可重复读：解决脏读和不可重复读。A在第二次读数据前，B对数据进行了修改并提交，导致A在第二次读数据时，数据不一致。
+序列化：解决脏读、不可重复读和幻读。在第二次读之前，在查询范围内插数据。
+
+可重复读：间隙锁(mysql可重复读可解决幻读问题)。
+MVCC(Multiversion Concurrency Control)：事务读取到的数据，要么是事务开始前就已经存在的数据，要么是事务自身插入或者修改过的数据
+   MVCC只在REPEATABLE READ和READ COMMITIED两个隔离级别下工作。其他两个隔离级别都和 MVCC不兼容 ，因为READ UNCOMMITIED总是读取最新的数据行，而不是符合当前事务版本的数据行。而SERIALIZABLE则会对所有读取的行都加锁。
+   解决了读写之间阻塞的问题/解决一致性读的问题/降低了死锁的概率( InnoDB 的 MVCC 采用了乐观锁实现)。
+   实现：
+      mysql通过乐观锁(版本号)的方式实现MVCC。InnoDB的MVCC是通过在每行记录后面保存两个隐藏的列来实现的。一个保存了行的事务ID（DB_TRX_ID），一个保存了行的回滚指针（DB_ROLL_PT)。
+      因为MVCC核心是判断所有版本中哪个版本是当前事务可见的处理，因此添加ReadView，ReadView中主要包含当前系统中还有哪些活跃的读写事务，把它们的事务id放到一个列表中，我们把这个列表命名为为m_ids。
+      对于查询时的版本链数据是否看见的判断逻辑：
+         如果被访问版本的 trx_id 属性值小于 m_ids 列表中最小的事务id，表明生成该版本的事务在生成 ReadView 前已经提交，所以该版本可以被当前事务访问。
+         如果被访问版本的 trx_id 属性值大于 m_ids 列表中最大的事务id，表明生成该版本的事务在生成 ReadView 后才生成，所以该版本不可以被当前事务访问。
+         如果被访问版本的 trx_id 属性值在 m_ids 列表中最大的事务id和最小事务id之间，那就需要判断一下 trx_id 属性值是不是在 m_ids 列表中，如果在，说明创建 ReadView 时生成该版本的事务还是活跃的，该版本不可以被访问；如果不在，说明创建 ReadView 时生成该版本的事务已经被提交，该版本可以被访问。
+      在 MySQL 中， READ COMMITTED 和 REPEATABLE READ 隔离级别的的一个非常大的区别就是它们生成 ReadView 的时机不同。在 READ COMMITTED 中每次查询都会生成一个实时的 ReadView，做到保证每次提交后的数据是处于当前的可见状态。而 REPEATABLE READ 中，在当前事务第一次查询时生成当前的 ReadView，并且当前的 ReadView 会一直沿用到当前事务提交，以此来保证可重复读（REPEATABLE READ）
+
+10、可重复读解决了哪些问题? 25 
+脏读：A读了B未提交的数据，然后B数据回滚引起的脏数据。
+不可重复读：A在对二次读数据前，B对数据进行了修改并提交，导致A在第二次读数据时，数据不一致。
+11、对 SQL 慢查询会考虑哪些优化 ? 25 
+索引优化，联合索引，乐观锁
+12、谈一谈缓存穿透、缓存击穿和缓存雪崩，以及解决办法? 26
+穿透：查询了一个cache和数据库都不存在的数据。布隆过滤器(位运算)，不存在的肯定不存在，存在的可能不存在。
+击穿：当某个key失效时，大量请求请求这个key
+雪崩：大量key在同一时间失效，导致请求发到数据库上，导致数据库崩溃。
+13、LRU 是什么?如何实现?27 
+Last Recent Use，最近最少使用，对时间分权，时间越接近现在权重越大，如果使用了key就对权重累加。
+实现
+14、什么是堆内存?参数如何设置? 27 
+存放对象的地方。 max mix
+15、栈和队列，举个使用场景例子? 27 
+栈：先进后出
+队列：先进先出。
+16、MYSQL 为什么 INNODB 是默认引擎? 27 
+INNODB支持事物
+17、MYSQL 索引底层结构为什么使用 B+树?28 
+效率高，稳定。
+B+树，数据都存在在叶子结点，非叶子节点只存索引，且叶子结点先后连接，方便范围查询。
+18、B+ 树的叶子节点链表是单向还是双向?28 
+双向
+19、MVCC 是什么?它的底层原理是什么?28 
+multi version concurrent  control。生成副本。
+20、UNDO LOG 具体怎么回滚事务 ? 28 
+
+21、如何查询慢 SQL 产生的原因 29 
+22、索引失效的情况有哪些? 29 
+使用了函数。不符合最左匹配原则。使用了null值。
+23、一个 REDIS 实例最多能存放多少的 KEYS?LIST、SET、SORTED SET 他们最多能存放多少元素?29 
+24、REDIS 数据结构 压缩列表和跳跃表的区别29 
+压缩列表：
+跳跃表：对数据做索引。
+25、为什么数据量小的时候用压缩列表 ?30
+跳跃表占空间？
+
+
+
+
+geektime
+1.Java平台的理解
+   跨平台。源码-(javac)-->字节码--(jvm)-->机器码。不同操作系统有不同的JVM，分别解释成对应系统的字节码。
+   Java是一个解释性和编译性都有的高级编程语言。
+   JIT(Just In Time)及时编译,预热。
+   AOT
+
+   跨平台
+      源代码(.java) - javac -> 字节码(.class) - jvm -> 机器码。
+      每个平台都有对应的JVM，因此可以跨平台执行。
+   静态代码块，构造代码块，构造函数
+   B extend A
+   A静态代码块、B静态代码块、A构造代码块、A构造函数、B构造代码块、B构造函数
+   类加载:
+      1.加载: 根据类的全限定名将该类的字节码加载到内存，生成代表该类的Class对象
+      2.链接:将创建好的Class对象合并到JVM
+         验证:确保class文件中的字节码符合JVM的要求，确保类的正确性
+         准备:为类的静态字段分配内存，并设置默认值(类型的默认值)。被final修饰的static字段不会设置，因为在编译时就分配了。
+         解析:将符号引用解析成直接引用。
+      3.初始化:执行类的构造器方法init()的过程。这个方法不需要定义，是javac编译器自动收集类中所有类变量的赋值动作和静态代码块中的语句合并来的。
+
+      加载器:
+         1.Bootstrap class loader:加载Java核心类库。用C/C++语言实现的，因此获取不到相应信息。出于安全考虑，启动类只加载包名为：java、javax、sun开头的类。
+         2.Platform class loader:从系统属性：java.ext.dirs目录中加载类库，或者从JDK安装目录：jre/lib/ext目录下加载类库。我们就可以将我们自己的包放在以上目录下，就会自动加载进来了。
+         3.System class loader:它负责加载环境变量classpath或者系统属性java.class.path指定路径下的类库。它是程序中默认的类加载器，我们Java程序中的类，都是由它加载完成的。
+
+         双亲委派:资源隔离，可能造成资源冗余
+            当类加载器接收到了类加载的请求，它自己不会先加载，而是让父加载器加载，如果父加载器也存在父类加载器则继续向上委托，一直到Bootstrap。父加载器加载失败时将由子类去尝试加载，如果加载失败，则抛出ClassNotFoundException异常。
+   执行:
+      将源码编译为字节码，然后JVM将字节码 解释 为机器码。
+         这样启动的时候会很快，但是执行的时候会慢。
+      编译器:
+         将 源代码 转换成 机器语言，通常是 二进制形式(机器码) 并保存下来(复用)，等待执行。目的是生成 可执行的程序。
+         优点:
+            因为提前编译生成 机器码，所以直接执行 编译后的文件即可，因此速度较快。
+         缺点:
+            源代码编译后只能在该类机器上运行，无法跨平台。
+      解释器:
+         在程序运行时，将源代码转换为 机器语言(机器码)，并立即执行。
+         工作模式:
+            1.分析源代码，并且直接执行。
+            2.把源代码翻译成l相对更加高效率的中间码，然后立即执行它。
+            3.执行由解释器内部的编译器预编译后保存的代码。
+         优点:
+            跨平台性，因为无需编译，因此只要解释器支持多平台，就有跨平台性。
+         缺点:
+            运行速度慢，解释器要额外的开销。
+
+      为了提高运行效率，JAVA也提供了 直接编译为机器码的 机制。
+         JIT(Just In Time): 即时编译器
+            运行时，将热点代码的字节码 提前编译为机器码并保存下来，后续直接调用机器码，而无需解释执行，提高程序运行效率。
+               热点代码:
+                  运行时，当某一方法调用次数达到即时编译定义的阈值时，可以将该方法认为 热点代码。
+               编译器:
+                  C1编译器:client模式，根据1500次的收集计算出热点代码。启动性能好，适合启动快的客户端。
+                  C2编译器:server模式，根据10000次的收集计算出热点代码。峰值性能好，适合长期运行的服务端。
+         AOT(Ahead-of-Time Compilation):
+            运行之前，将应用中或JDK中的字节码编译成机器码(与即时编译器有区别)
+      参数:
+         -Xmixed:混合模式
+         -Xint:解释
+         -Xcomp:编译
+
+
+      程序计数器、虚拟机栈、本地方法栈、堆、元空间
+
+
+   所以对于方法区，Java8 之后的变化： 
+      移除了永久代（PermGen），替换为元空间（Metaspace）； 
+      永久代中的 class metadata 转移到了 native memory（本地内存，而不是虚拟机）； 
+      永久代中的 interned Strings 和 class static variables 转移到了 Java heap； 
+      永久代参数 （PermSize MaxPermSize） -> 元空间参数（MetaspaceSize MaxMetaspaceSize）
+
+5.26
+LRU实现
+   哈希表+双向链表
+Mysql为什么innodb是默认引擎。
+Redis数据结构：
+   String
+   List
+   Set
+   Hash
+   Zset
+
+   SDS
+   ZipList
+   QuickList
+   Dict
+   IntSet
+   ZSkipList
+mvcc readview：
+   存放活跃的事务ID。
+6.1
+   虚拟内存：计算机内存管理的一种技术
+      1.空间连续，没有碎片
+      2.最大空间为CPU的最大寻址地址
+   创建进程时，内核会为每个进程分配虚拟内存，这个时候数据和代码还在磁盘上。当运行到对应进程时，进程去寻找页表，如果发现页表中地址不在物理内存而在磁盘上时，会发生缺页异常，然后将磁盘数据复制到物理内存中，并且更新页表，下次访问虚拟内存时就能命中。
+
+6.13
+   MYSQL主从复制
+   HashMap扩容
+   Lock Condition
+   mysql锁
+6.28
+   线程调度算法:分时调度、抢占调度
+   线程阻塞情况:对象等待(wait())、对象锁(synchronized)、其他(sleep()/等待IO)
+6.29
+   interrupt/isinterrupted:中断
+   Thread#holdsLock(Object):查看线程是否持有该锁
+   yield/线程优先级:1-10，越大越优先。
+   semaphore/CountDownLatch/CyclicBarrier:
+   jstat/jstack/jmap
+6.30
+   CompletionService
+7.1
+   mybatis:
+      机制:代理
+      缓存:一级(Session)/二级(Namespace)
+      映射关系:association/collection
+      插件:Interceptor拦截，可以拦截ParameterHandler/ResultHandler/StatementHandler/Executor
+   Redis:
+      数据类型:string/list/set/zset/hash/HyperLogLogs/BitMap/Geospatial
+      特性:内存/数据类型丰富/持久化/事务性
+      持久化:RDB(Redis DataBase)/AOF(Append of file)
+      主从同步:在2.8版本之前只有全量复制，而2.8版本后有全量和增量复制
+      Master开启bgsave fork一个线程生成rdb文件，然后将rdb文件发送给salve，期间所有的修改命令存到缓冲池，然后发送给salve重放。
+7.5
+   Redis数据类型:
+   String:
+      SDS(Simple Dynamic String):
+         len+alloc+flags+buf[]
+            len:字符串的长度。获取长度时间复杂度为O(1)，而且二进制安全(不会读到\0就结束);
+            alloc:分配的空间长度。在修改字符串时可以根据alloc-len判断剩余的空间是否满足修改需求，不满足将自动扩容(小于1M翻倍，否则每次加1M)，然后操作。减少扩容，而且不会发生缓存区溢出;
+            flags:表示不同类型的SDS(sds8、sds16、sds32、sds64)，这些类型的头部占用空间不同(节省内存空间)。flags低三位判断是哪个类型的sds，因为不超过8个值;
+            buf[]:字符数组，保存实际数据，不仅可以保存字符串，也可以保存二进制数据。
+   List:
+      list(已弃用)：
+         head(listNode)+tail(listNode)+len:
+            listNode:prev(listNode)+next(listNode)+value
+         优点:获取头结点/尾结点/长度的时间复杂度为O(1)。
+         缺点:内存空间不连续，无法利用CPU缓存。每个节点都要分配结构头，内存开销大。
+      quickList:
+         和list类似，只不过节点是zipList。
+         zipList:
+            zlbytes+zltail+zltail+zllen+zlend:
+               zlbytes:记录整个压缩列表占用对内存字节数；
+               zltail:记录压缩列表「尾部」节点距离起始地址由多少字节，也就是列表尾的偏移量；
+               zllen:记录压缩列表包含的节点(entry)数量；
+               zlend:标记压缩列表的结束点，固定值 0xFF（十进制255）。
+               entry:prevlen+encoding+data
+                  prevlen:记录了「前一个节点」的长度；
+                  encoding:记录了当前节点实际数据的类型以及长度；
+                  data:记录了当前节点的实际数据。
+            优点:是一种内存紧凑型的数据结构，占用一块连续的内存空间，不仅可以利用 CPU 缓存，而且会针对不同长度的数据，进行相应编码，这种方法可以有效地节省内存开销。
+            缺点:虽然查找头/尾元素的时间复杂度为O(1)，但是查找其他元素时间复杂度为O(n)。而且还有连锁更新问题，因此不适合存过多元素。
+               连锁更新:
+                  压缩列表新增某个元素或修改某个元素时，如果空间不不够，压缩列表占用的内存空间就需要重新分配。而当新插入的元素较大时，可能会导致后续元素的 prevlen 占用空间都发生变化，从而引起「连锁更新」问题，导致每个元素的空间都要重新分配，造成访问压缩列表性能的下降。
+   Hash:
+      listpack:
+      hashTable(哈希表):
+         数组+链表:链表在节点很多的情况下，时间复杂度降为O(n)，因此需要扩容。
+         扩容:
+            渐进式rehash:
+               两个hash表，交替使用，用于rehash操作。如果数据量较大，一次性迁移太影响性能。因此渐进式迁移。
+               给hash2分配空间，并且在 rehash 进行期间，每次哈希表元素进行新增、删除、查找或者更新操作时，Redis 除了会执行对应的操作之外，还会顺序将「哈希表 1 」中索引位置上的所有 key-value 迁移到「哈希表 2」 上；
+            rehash触发条件:
+               当负载因子大于等于 1 ，并且 Redis 没有在执行 bgsave 命令或者 bgrewiteaof 命令，也就是没有执行 RDB 快照或没有进行 AOF 重写的时候，就会进行 rehash 操作。
+               当负载因子大于等于 5 时，此时说明哈希冲突非常严重了，不管有没有有在执行 RDB 快照或 AOF 重写，都会强制进行 rehash 操作。
+               负载因子:负载因子=哈希表已保存的节点数量/哈希表大小。
+   Set:
+      IntSet:
+         当一个 Set 对象只包含整数值元素，并且元素数量不多时，就会使用整数集这个数据结构作为底层实现。本质上是一块连续内存空间。
+         encoding+length+contents[]:
+            encoding:编码方式(INTSET_ENC_INT16/INTSET_ENC_INT32/INTSET_ENC_INT64)。
+            length：元素数量。
+            contents[]:保存元素的数组。
+         整数集合的升级操作:
+            如果新增加的元素(int32_t)比现有元素(int16_t)都要长时，整数集合需要先进行升级，也就是按新元素的类型（int32_t）扩展 contents 数组的空间大小，然后才能将新元素加入到整数集合里，当然升级的过程中，也要维持整数集合的有序性。节省内存，不能降级。
+            示例：
+               整数集合里有 3 个类型为 int16_t 的元素，现在，往这个整数集合中加入一个新元素 65535，这个新元素需要用 int32_t 类型来保存，所以整数集合要进行升级操作。
+               1.对contents[]进行扩容。在原本空间的大小之上再扩容多 80 位（4x32-3x16=80），这样就能保存下 4 个类型为 int32_t 的元素。
+               2.扩容完 contents 数组空间大小后，需要将之前的三个元素转换为 int32_t 类型。将转换后的元素放置到正确的位上面，并且需要维持底层数组的有序性不变
+                  0~15 16~31 32~47 48~63 64~95 96~127
+                   1     2     3     新分配的空间
+                  0~15 16~31 32~47 48~63 64~95 96~127
+                   1     2                 3
+                  0~15 16~31 32~63 64~95 96~127
+                         1           2     3
+                        0~31 32~63 64~95 96~127
+                         1     2     3
+                        0~31 32~63 64~95 96~127
+                         1     2     3     4
+   ZSet:
+      typedef struct zset {    
+         dict *dict;    
+         zskiplist *zsl;
+      } zset;
+      typedef struct zskiplist {    
+         struct zskiplistNode *header, *tail;    
+         unsigned long length;    
+         int level;
+      } zskiplist;
+      typedef struct zskiplistNode {    
+         //Zset 对象的元素值    
+         sds ele;    
+         //元素权重值    
+         double score;    
+         //后向指针    
+         struct zskiplistNode *backward;    
+         //节点的level数组，保存每层上的前向指针和跨度    
+         struct zskiplistLevel {
+                 struct zskiplistNode *forward;
+                 // 跨度。跨度实际上是为了计算这个节点在跳表中的排位(位置)。
+                 unsigned long span;    
+         } level[];
+      } zskiplistNode;
+      唯一一个同时使用了两个数据结构来实现的 Redis 对象，这两个数据结构一个是跳表，一个是哈希表。这样的好处是既能进行高效的范围查询，也能进行高效单点查询。
+      跳表:
+         在链表基础上改进过来的，实现了一种「多层」的有序链表(多级索引)。
+   BitMap:
+   HyperLogLog:
+   Geo:
+
+   listpack:
+      还是用一块连续的内存空间来紧凑地保存数据，并且为了节省内存的开销，listpack 节点会采用不同的编码方式保存不同大小的数据。
+      listpack总字节数+listpack元素数量+listpack entry[]+listpack结尾标识
+      listpack entry:encoding+data+len
+         encoding:定义该元素的编码类型，会对不同长度的整数和字符串进行编码；
+         data:实际存放的数据；
+         len:encoding+data的总长度；
+      entry不保存prelen以避免连锁更新
+7.6
+   并发要素：分工、同步、互斥
+   Future、Task、FutureTask
+   CompletionService
+   CompletableFuture
+
+   Funtion：Represents a function that accepts one argument and produces a result.This is a functional interface whose functional method is apply(Object).
+   Consumer：Represents an operation that accepts a single input argument and returns no result. Unlike most other functional interfaces, Consumer is expected to operate via side-effects.This is a functional interface whose functional method is accept(Object).
+   Runable： The class must define a method of no arguments called run.   
+
+   CompletionStage：
+
+7.11
+   原子性，中间状态对外不可见。
+   死锁四要素:
+      互斥：
+      抢占且占有：可以一次性获取所有锁。
+      不可剥夺：获取不到其他锁时，释放自己所持有的锁。
+      循环等待：可以将资源排序，按序去获取对应的锁。
+resilience4j:
+   resilience4j-circuitbreaker: Circuit breaking
+   resilience4j-ratelimiter: Rate limiting
+   resilience4j-bulkhead: Bulkheading
+   resilience4j-retry: Automatic retrying (sync and async)
+   resilience4j-cache: Result caching
+   resilience4j-timelimiter: Timeout handling
+
+   BiConsumer
+   thenCompose
+7.12
+   ThreadPoolExecutor
+   Future
+   FutureTask
+   CompletableFuture
+   CompletionService
+   ForkJoinPool
+
+   快排
+   归并
+   统计文件单词
+7.22
+   ThreadLocal
+   Reference
+
+7.28
+   Netty Reactor线程模型 EventLoopGroup包含多个EventLoop 
+   java socker由ServerSocket接收TCP请求，然后新建Socket处理TCP请求。对应BossEventLoopGroup接收请求，WorkerEventLoopGroup处理请求，EventLoopGroup包含多个EventLoop，每个EventLoop对应一个线程，因此是网络事件处理是单线程，没有并发问题。
