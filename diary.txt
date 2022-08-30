@@ -344,11 +344,6 @@ Base 理论是什么？
 	  	如果轻，则说明5，6，7轻，取出两个对比就知道结果
 	  	如果重，则可能是1重，或者8轻
 
-EJBCA:
-	1.下载安装包和数据库
-	2.修改配置。在conf目录
-
-
 mysql
 	表连接
 		内连接
@@ -465,7 +460,14 @@ Spring Cloud加载:2020版之前依赖bootstrap上下文和BootstrapConfig，之
 							ParentContextApplicationContextInitializer#initialize:
 								ConfigurableApplicationContext#setParent
 
-
+   AbstractNestedCondition#matches:
+      AbstractNestedCondition#getMatchOutcome
+         AbstractNestedCondition.MemberConditions#getMemberConditions: 获取各个嵌套类的Condition
+         AbstractNestedCondition.MemberMatchOutcomes#new
+            AbstractNestedCondition.MemberConditions#getMatchOutcomes: 获取Condition匹配结果集(嵌套类纬度)
+               AbstractNestedCondition.MemberOutcomes#getConditionOutcome:获取单个结果(嵌套类中单个Condition)
+               AbstractNestedCondition.MemberOutcomes#getUltimateOutcome:获取最终匹配结果
+         AbstractNestedCondition#getFinalMatchOutcome:根据规则返回结果(any/all)
 
 
 
@@ -663,10 +665,6 @@ finalize:
 
 			Advice -AdvisedSupport-> Adivsor -AdvisorAdapter-> MethodInterceptor
 
-		
-
-
-			
 
 
 Spring batch

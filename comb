@@ -405,3 +405,141 @@ resilience4j:
 7.28
    Netty Reactor线程模型 EventLoopGroup包含多个EventLoop 
    java socker由ServerSocket接收TCP请求，然后新建Socket处理TCP请求。对应BossEventLoopGroup接收请求，WorkerEventLoopGroup处理请求，EventLoopGroup包含多个EventLoop，每个EventLoop对应一个线程，因此是网络事件处理是单线程，没有并发问题。
+   Disruptor是一个高性能的有界队列，主要原因有
+      1.内存分布更加合理(初始化时将所有对象创建出来，这样所有对象大概率是内存连续的，容易被缓存到。并且对象是复用的(重新设置数据)，避免频繁GC)。
+      2.使用缓存行填充技术避免伪缓存(缓存是按行(64字节)缓存的，如果多个数据在一个缓存行，其中一个数据更新时会导致所有数据缓存失效)
+      3.无锁操作(内部维护入队索引，多个消费者每个内部维护一个出队索引，取最小的出队索引。入队时如果没有空间则让出CPU，等会在重新计算，如果有位置则按照CAS更新入队索引)
+7.29
+   HikariCP:
+      FastList:关闭Connection时自动关闭Statement。使用FastList存储Statement，关闭时依次取出关闭。按照习惯Statement是逆序关闭的，因此FastList删除时是逆序查找，并且不用下标越界检查。
+      ConcurrentBag:
+         CopyOnWriteArrayList<T> sharedList;
+         ThreadLocal<List<Object>> threadList;
+         AtomicInteger waiters;
+         SynchronousQueue<T> handoffQueue;
+8.2
+   单体架构->SOA->Micro Service
+   微服务相对于单体架构的优势:
+      快速迭代+快速回滚：merge冲突少，沟通成本降低
+      资源分配均衡
+8.8
+   Nacos:
+      领域模型
+         服务 集群 实例
+      数据模型
+         Namespace Group Service
+      基本架构:Naming Config Service
+         启动功能
+         寻址功能
+         缓存功能
+         存储功能
+         事件功能
+         日志功能
+         容量管理
+   k8s docker中服务注册地址
+   apollo数据模型
+   一致性协议
+8.9
+   @Loadbalancer逻辑
+   VIP代理nacos集群
+   服务故障或者磁盘空间满，nacos如何感知并将服务下线
+8.10
+   @Loadbalancer
+   金丝雀发布(灰度发布)
+8.11
+   OpenFeign
+8.12
+   OpenFeign日志
+      Logger.Level.NONE/Basic/Headers/Full Debug级别
+   OpenFeign调用超时
+      Feign.client.conf.default.connectTimout/ResponseTimeout。可设置全局和局部的连接超时和响应超时
+   Openfeign降级
+      需要引入hystrix，@FeignClient的fallback属性，如果需要日常信息，需要继承FallBackFactory，由fallbackFactory指定
+8.16
+   nacos动态更新 @RefreshScope
+   bootstrap上下文
+8.17
+   Sentinel(中心式服务)，限流，熔断，降级
+      限流模式
+         直接限流，关联限流，调用链限流
+      限流效果
+         快速失败，预热，等待队列
+      限流算法
+         令牌桶，漏桶
+8.18
+   Sentinel持久化(集成Nacos)
+   主链路特征：业务完整性，转化率重因子，用户流量占比，现金水库。
+   漏斗模型
+
+
+   AbstractNestedCondition#matches:
+      AbstractNestedCondition#getMatchOutcome
+         AbstractNestedCondition.MemberConditions#getMemberConditions: 获取各个嵌套类的Condition
+         AbstractNestedCondition.MemberMatchOutcomes#new
+            AbstractNestedCondition.MemberConditions#getMatchOutcomes: 获取Condition匹配结果集(嵌套类纬度)
+               AbstractNestedCondition.MemberOutcomes#getConditionOutcome:获取单个结果(嵌套类中单个Condition)
+               AbstractNestedCondition.MemberOutcomes#getUltimateOutcome:获取最终匹配结果
+         AbstractNestedCondition#getFinalMatchOutcome:根据规则返回结果(any/all)
+8.19:
+   Sleuth Zipkin ELK
+8.22
+   Spring Gateway
+      路由
+      谓词
+         寻址谓词
+         请求参数谓词
+         时间谓词
+      过滤器
+8.23
+   消息队列，解耦，削峰，异步
+   Stream binder binding 分区 消费组
+8.24
+   消息队列，本地重试，重新入队，降级处理(@ServiceAcativ)，死信队列(auto-bind-dlx)
+8.25
+   Seata 分布式模式支持XA、AT、TCC、SAGA
+   AT模式: TC TM RM
+
+   JDK1.7 HashMap扩容死循环https://www.jianshu.com/p/9daa899e774e
+
+一致性协议:目的是让各个节点的数据内容达成一致
+   中心化(有主节点)
+      Paxos
+         发起者：
+          发送数字为n，内容为v的"提议"的预请求给所有接收者：
+              从回应中挑出数字小于n且数字最大的"提议"，并将提议内容赋给v
+              如果回应中没有"提议"，内容v由发起者指定
+          发送数字为n，内容为v的"提议"的接收请求给所有接收者
+
+         接收者：
+             接收到预请求：
+                 如果预请求的数字n小于已经接收过的预请求的数字n，continue
+                 回应发起者，表明自己不会再接收数字小于n的请求以及收到的数字小于n且数字最大的"提议"
+             接收到接收请求：
+                 如果没有收到数字比n大的预请求:
+                     接受请求
+      Raft:http://thesecretlivesofdata.com/raft/
+         leader/candidate/follower
+            选举阶段(Leader Election):
+               当follower一段时间(election timeout)没有收到leader的心跳检测，follower会变成candidate，并将term(任期)加一，然后寻求其他节点的投票，当获得半数票后，将晋升为leader。leader会在固定时间间隔(heartbeat timeout)发送心跳检测。因为每个follower变成candidate的时间是随机的，因此发生碰撞(多个candidate都获取不到半数以上的投票)的概率不高，如果碰撞，则等待新的candidate（根据election timeout，可能是原来的candidate）出现，重新寻求投票即可。
+               当leader收到其他term比自身term大的信息时，会自动降为follower。
+            消息同步(Log Replication):
+               收到数据更新请求后，会先将数据记录到log中，然后发起数据同步请求到follower，收到半数以上的follower响应后，leader会将数据提交，通知请求者数据更新成功，然后通知follower提交请求，。
+
+   对等模式(无主节点)
+      Gossip:闲话协议、流行病毒协议
+         通过传播最终达到一致性。一传二，二传四，四传八...，当所有节点都接收到数据后，就达到了一致性。因为每个节点只能传播2个节点，因此类似二叉树，时间为log n。
+      Pow:工作量证明协议
+         大量的节点参与竞争，通过自身的工作量大小来证明自己的能力，最终能力最大的节点获得优胜，其他节点的信息需要与该节点统一。速度慢，因为都要向优胜节点同步数据。
+8.29
+   ServiceMesh是一个请求分发的基础设施。它以SideCar形式部署(网络代理)，对应用来说是透明的。也可以定义为是SideCar的网络拓扑模式。
+   Service Mesh 发展过程
+      逻辑耦合，公共库，代理，Sidecar模式，ServiceMesh数据平面，ServiceMesh数据平面加控制平面
+8.30
+   Istio:流量控制、可观察性、安全。单体Istiod(Pilot配置分发(实现类，与底层偶合)、Galley配置分发(抽象类)、Citadel安全)
+      流量控制：
+         路由、流量转移(用于灰度发布等)、网络进出、网络弹性能力(超时/重试/熔断)、测试相关
+      可观察性：
+         指标：
+            服务级别、代理级别、控制平面级别
+         日志：
+         分布式链路追踪：
