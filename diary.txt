@@ -2097,4 +2097,28 @@ git reset：
 		Hoare 模型：中断T2，唤醒T1，T1执行完在唤醒T2。相比于Hasen 模型多了一个唤醒操作，但是无需将notify放到代码最后。
 		MESA 模型：不中断T2，当T1条件满足，将T1从条件变量等待队列放入入口等待队列。不保证T1一定能执行，因此wait方法支持超时参数。
 
-
+9.13
+	消息确认机制:
+		生产者:
+			事务模式(同步):阻塞的，一条消息没有发送完毕，不能发送下一条消息，它会榨干RabbitMQ服务器的性能。
+				com.rabbitmq.client.Channel#txSelect
+				com.rabbitmq.client.Channel#txCommit
+				com.rabbitmq.client.Channel#txRollback
+			Confirm模式(异步):
+				单条确认:每发送一条消息后，调用waitForConfirms()方法，等待服务器端confirm。实际上是一种串行confirm了。
+					com.rabbitmq.client.Channel#confirmSelect
+					com.rabbitmq.client.Channel#waitForConfirms()
+				批量确认:每发送一批消息后，调用waitForConfirms()方法，等待服务器端confirm。定期（每隔多少秒）或者定量（达到多少条）或者两则结合起来publish消息，然后等待服务器端confirm。一旦出现confirm返回false或者超时的情况时，客户端需要将这一批次的消息全部重发，这会带来明显的重复消息数量，并且，当消息经常丢失时，批量confirm性能应该是不升反降的。
+					com.rabbitmq.client.Channel#confirmSelect
+					com.rabbitmq.client.Channel#waitForConfirms()
+				异步(回调)确认:提供一个回调方法，服务端confirm了一条或者多条消息后Client端会回调这个方法。回调方法参数只包含deliveryTag（当前Chanel发出的消息序号），我们需要自己为每一个Channel维护一个unconfirm的消息序号集合，每publish一条数据，集合中元素加1，每回调一次handleAck方法，unconfirm集合删掉相应的一条（multiple=false）或多条（multiple=true）记录。从程序运行效率上看，这个unconfirm集合最好采用有序集合SortedSet存储结构。
+					com.rabbitmq.client.Channel#confirmSelect
+					com.rabbitmq.client.Channel#addConfirmListener
+					com.rabbitmq.client.Channel#getNextPublishSeqNo
+			发送平均速率:
+				事务模式（tx）：1637.484
+				普通confirm模式(common)：1936.032
+				批量confirm模式(batch)：10432.45
+				异步confirm模式(async)：10542.06
+		消费者:
+			手动ACK
