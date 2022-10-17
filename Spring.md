@@ -33,3 +33,53 @@
 ​	事件
 
 ​	泛型处理
+
+### JDK API实践
+
+#### 1.2
+
+反射(Reflection):MethodMatcher
+
+#### 1.3
+
+动态代理(Dynamic Proxy):JdkDynamicAopProxy
+
+#### 5
+
+注解
+
+XML处理(DOM，SAX):XMLBeanDefinitionReader
+
+Java管理扩展(JMX):@ManagedResource
+
+JUC:ThreadPoolTaskScheduler
+
+格式化(Formatter):DateFormatter
+
+#### 6
+
+JDBC 4.0:JdbcTemplate
+
+Common Annotations(JSR 250):CommonAnnotationBeanPostProcesser
+
+JAXB 2.0:Jaxb2Marshaller
+
+#### 7
+
+Fork/Join:ForkJoinPoolFactoryBean
+
+NIO 2(JSR 203):PathResource
+
+#### 8
+
+Strem API(JSR 335):StreamConverter
+
+Date And Time Api:DateTimeContext
+
+可重复Annotations(JSR 337) @Repeatable:@PropertySources
+
+lambda
+CompletableFuture
+
+
+
