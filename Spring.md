@@ -34,6 +34,28 @@
 
 ​	泛型处理
 
+### 模块
+
+Spring-core:核心模块，包括类型转换
+
+Spring-bean:
+
+Spring-context:
+
+Spring-aop:
+
+Spring-tx:
+
+Spring-jdbc:
+
+Spring-test:
+
+Spring-web mvc:
+
+Spring-web flux:
+
+Spring-web:
+
 ### JDK API实践
 
 #### 1.2
@@ -81,5 +103,15 @@ Date And Time Api:DateTimeContext
 lambda
 CompletableFuture
 
+### 技术整合
 
+RMI
+
+JMS
+
+JMX
+
+本地任务
+
+本地调度
 
