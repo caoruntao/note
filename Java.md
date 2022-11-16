@@ -314,6 +314,135 @@ Java 字节码中与调用相关的指令共有五种：
 
 ​	除了 try-with-resources 语法糖之外，Java 7 还支持在同一 catch 代码块中捕获多种异常。实际实现非常简单，生成多个异常表条目即可。
 
+## Java字节码
+
+​	Java字节码为Java虚拟机所使用的指令集，该指令集包含200多个指令，使用8bit(2^8=256)就能存下，因此被称为字节码。字节码与Java虚拟机基于栈的计算模型是密不可分的。
+
+​	在解释执行时，每当Java方法分配栈帧时，Java虚拟机往往需要开辟一块额外的空间作为操作数栈，来存放计算的操作数以及返回结果。具体来说就是：执行每一条指令之前，Java虚拟机要求该指令的操作数已被压入操作数栈中。在执行指令时，Java虚拟机会将该指令所需的操作数弹出，并将指令的结果重新压入栈。栈帧另一重要组成部分则是局部变量表，字节码程序可以将计算结果缓存在局部变量表中。实际上，Java虚拟机将局部变量表当成一个数组，依次存放this指针(仅非静态方法)，所传入的参数，以及字节码中的局部变量。
+
+### 操作数栈
+
+#### 直接作用在操作数栈的指令
+
+​	dup：复制栈顶元素。常用于复制new指令所生成的未经初始化的引用，当执行new指令时，Java虚拟机会将指向一块已分配、未初始化的内存的引用压入操作数栈中。接下来，需要以这个引用作为调用者来调用其构造器，也就是invokespeical指令，该指令将消耗操作数栈的元素，作为它的调用者和参数。如果不复制，引用被消耗后，会丢失引用。
+
+​	pop：舍弃栈顶元素。常用于舍弃调用指令的返回结果。
+
+​	上述两条指令只能处理非long和非double类型的值，因为long和double类型的值需要占用两个栈单元，其他类型的值只会占用一个栈单元。当遇到long或double类型的值时，复制栈顶元素使用dup2指令，舍弃栈顶元素使用pop2指令。
+
+​	swap：交换栈顶两个元素的值。
+
+#### 常量加载指令
+
+​	ldc:load constant
+
+| 类型                            | 常数指令 | 范围                          |
+| ------------------------------- | -------- | ----------------------------- |
+| int(boolean, byte, char, short) | iconst   | [-1, 5]                       |
+|                                 | bipush   | [-128, 127]                   |
+|                                 | sipush   | [-32768, 32767]               |
+|                                 | ldc      | any int value                 |
+| long                            | lconst   | 0, 1                          |
+|                                 | ldc      | any long value                |
+| float                           | fconst   | 0, 1, 2                       |
+|                                 | ldc      | any float value               |
+| double                          | dconst   | 0, 1                          |
+|                                 | ldc      | any double value              |
+| reference                       | aconst   | null                          |
+|                                 | ldc      | String literal, Class literal |
+
+​	正常情况下，操作数栈的压入弹出都是一条一条指令完成的。但是在抛异常时，Java虚拟机会清除操作数栈上的所有内容，而后将异常压入操作数栈上。
+
+### 局部变量表
+
+​	和操作数栈一样，long和double类型的值占据两个单元，其余类型占据一个的单元。
+
+#### 局部变量表访问指令
+
+| 类型                            | 加载指令 | 存储指令 |
+| ------------------------------- | -------- | -------- |
+| int(boolean, byte, char, short) | iload    | istore   |
+| long                            | lload    | lstore   |
+| float                           | fload    | fstore   |
+| double                          | dload    | dstore   |
+| reference                       | aload    | astore   |
+
+​	局部变量数组的加载、存储指令都要指明所加载单元的下标。
+
+​	Java字节码中唯一能直接作用于局部变量表的指令是iinc M N(M为非负整数，N为整数)，该指令指的是将局部变量数组的第M个单元的int值加N，常用于for循环中自增量的更新。
+
+### 其他类别指令
+
+​	new：后跟目标类，生成该类的未初始化的对象。
+
+​	instanceof：后跟目标类，判断栈顶元素是否为目标类/接口的实例，是则压入1，否则压入0。
+
+​	checkstat：后跟目标类，判断栈顶元素是否为目标类/接口的实例，不是便抛出异常。
+
+​	athrow：将栈顶异常抛出。
+
+​	monitorenter：为栈顶元素加锁。
+
+​	monitorexit：为栈顶元素解锁。
+
+​	getstatic：静态字段访问。
+
+​	putstatic：静态字段赋值。
+
+​	getfield：实例字段访问。
+
+​	putfield：实例字段赋值。
+
+​	invokestatic：执行静态方法。
+
+​	invokespecial：执行私有的实例方法，构造器，通过super调用的方法等。
+
+​	invokeinterface：执行从接口继承的方法。
+
+​	invokevirtual：执行非私有的实例方法。
+
+​	invokedynamic：执行动态绑定方法。
+
+### 数组相关指令
+
+​	newarray：新建基本类型的数组。
+
+​	anewarray：新建引用类型的数组。
+
+​	multianewarray：生成多维数组。
+
+​	arraylength：数组长度。
+
+#### 数组访问指令
+
+​	数组的加载指令和存储指令。
+
+| 类型          | 加载指令 | 存储指令 |
+| ------------- | -------- | -------- |
+| byte(boolean) | baload   | bastore  |
+| char          | caload   | castore  |
+| short         | saload   | sastore  |
+| int           | iaload   | iastore  |
+| long          | laload   | lastore  |
+| float         | faload   | fastore  |
+| double        | daload   | dastore  |
+| reference     | aaload   | aastore  |
+
+### 返回指令表
+
+​	控制流指令，包括无条件跳转的goto，条件跳转指令，tableswitch(密集的case)和lookupswitch(非密集的case)，返回指令，以及被废弃的jsr，ret指令。返回指令区分类型。
+
+| 返回类型                        | 返回指令 |
+| ------------------------------- | -------- |
+| void                            | return   |
+| int(boolean, byte, char, short) | ireturn  |
+| long                            | lreturn  |
+| float                           | freturn  |
+| double                          | dreturn  |
+| reference                       | areturn  |
+
+
+
 ## Java处理反射
 
 ### 反射 	
