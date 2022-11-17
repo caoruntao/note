@@ -314,6 +314,101 @@ Java 字节码中与调用相关的指令共有五种：
 
 ​	除了 try-with-resources 语法糖之外，Java 7 还支持在同一 catch 代码块中捕获多种异常。实际实现非常简单，生成多个异常表条目即可。
 
+## Java处理反射
+
+### 反射 	
+
+​	Reflection(反射) 是 Java 程序开发语言的特征之一，它允许运行中的 Java 程序对自身进行检查。通过反射，我们可以在运行时，对于任意一个类，都能够知道这个类的所有属性和方法；对于任意一个对象，都能够调用它的任意一个方法和属性。
+
+#### 功能
+
+Java 反射主要提供以下功能：
+
+- 在运行时判断任意一个对象所属的类；
+- 在运行时构造任意一个类的对象；
+- 在运行时判断任意一个类所具有的成员变量和方法（通过反射甚至可以调用private方法）；
+- 在运行时调用任意一个对象的方法
+
+#### 运用
+
+​	Java反射的基本运用:
+
+	+ 获得 Class 对象。有三种方式，Class.forName("类名") 、对象.getClass() 、int.class。
+	+ 判断是否为某个类的实例。instanceof关键字或者Class.对象的isInstance()方法。
+	+ 创建实例。使用Class对象的newInstance()方法来创建Class对象对应类的实例。或者先通过Class对象获取指定的Constructor对象，再调用Constructor对象的newInstance()方法来创建实例。
+	+ 获取方法。`getDeclaredMethods` 方法返回类或接口声明的所有方法，包括公共、保护、默认（包）访问和私有方法，但不包括继承的方法。`getMethods` 方法返回某个类的所有公用（public）方法，包括其继承类的公用方法。
+	+ 获取类的成员变量（字段）信息。`getFiled`：访问公有的成员变量。`getDeclaredField`：所有已声明的成员变量，但不能得到其父类的成员变量
+	+ 调用方法。Method.invoke
+	+ 利用反射创建数组。Array.newInstance(Class<?>,int)
+
+### 反射调用实现
+
+​	方法的反射调用通过Method.invoke实现，方法执行时会委派给MethodAccessor执行。MethodAccessor 是一个接口，它有两个已有的具体实现：一个通过本地方法来实现反射调用，另一个则使用了委派模式。每个 Method 实例的第一次反射调用都会生成一个委派实现，它所委派的具体实现便是一个本地实现(C++调用)。
+
+~~~java
+    public Object invoke(Object obj, Object... args)
+        throws IllegalAccessException, IllegalArgumentException,
+           InvocationTargetException
+    {
+        if (!override) {
+            Class<?> caller = Reflection.getCallerClass();
+            checkAccess(caller, clazz,
+                        Modifier.isStatic(modifiers) ? null : obj.getClass(),
+                        modifiers);
+        }
+        MethodAccessor ma = methodAccessor;             // read volatile
+        if (ma == null) {
+            ma = acquireMethodAccessor();
+        }
+        return ma.invoke(obj, args);
+    }
+~~~
+
+​	反射调用先是调用了 Method.invoke，然后进入委派实现（DelegatingMethodAccessorImpl），再然后进入本地实现（NativeMethodAccessorImpl），最后到达目标方法。
+
+​	Java 的反射调用机制还设立了另一种动态生成字节码的实现（下称动态实现），直接使用 invoke 指令来调用目标方法。之所以采用委派实现，便是为了能够在本地实现以及动态实现中切换。
+
+~~~java
+// 动态实现的伪代码，这里只列举了关键的调用逻辑，其实它还包括调用者检测、参数检测的字节码。
+// 生成直接调用方法的Java代码，和平时写的方法调用一样
+package jdk.internal.reflect;
+public class GeneratedMethodAccessor1 extends ... { 
+    @Overrides 
+    public Object invoke(Object obj, Object[] args) throws ... { 
+    	Test.target((int) args[0]); 
+        return null; 
+    }
+}
+~~~
+
+​	动态实现和本地实现相比，其运行效率要快上 20 倍  。这是因为动态实现无需经过 Java 到 C++ 再到 Java 的切换，但由于生成字节码十分耗时，仅调用一次的话，反而是本地实现要快上 3 到 4 倍 。
+
+​	考虑到许多反射调用仅会执行一次，Java 虚拟机设置了一个阈值 15（可以通过 -Dsun.reflect.inflationThreshold= 来调整），当某个反射调用的调用次数在 15 之下时，采用本地实现；当达到 15 时，便开始动态生成字节码，并将委派实现的委派对象切换至动态实现，这个过程我们称之为 Inflation。反射调用的 Inflation 机制是可以通过参数（-Dsun.reflect.noInflation=true）来关闭的。这样一来，在反射调用一开始便会直接生成动态实现，而不会使用委派实现或者本地实现。
+
+### 反射调用开销
+
+​	反射调用涉及到Class.forName，Class.getMethod 以及 Method.invoke 三个操作。其中，Class.forName 会调用本地方法，Class.getMethod 则会遍历该类的公有方法。如果没有匹配到，它还将遍历父类的公有方法。以 getMethod 为代表的查找方法操作，会返回查找得到结果的一份拷贝，将带来额外的堆空间消耗。
+
+​	方法的反射调用会带来不少性能开销，原因主要有三个：变长参数方法导致的 Object 数组(Method.invoke是个变长参数)	，基本类型的自动装箱、拆箱，还有最重要的方法内联。
+
+## JVM实现invokedynamic
+
+​	在 Java 中，方法调用会被编译为 invokestatic，invokespecial，invokevirtual 以及 invokeinterface 四种指令。这些指令与包含目标方法类名、方法名以及方法描述符的符号引用捆绑。在实际运行之前，Java 虚拟机将根据这个符号引用链接到具体的目标方法。在这四种调用指令中，Java 虚拟机明确要求方法调用需要提供目标方法的类名。
+
+​	Java 7 引入了一条新的指令 invokedynamic。该指令的调用机制抽象出调用点这一个概念，并允许应用程序将调用点链接至任意符合条件的方法上。 invokedynamic的实现基于方法句柄（MethodHandle）。
+
+​	方法句柄是一个强类型的、能够被直接执行的引用。它仅关心所指向方法的参数类型以及返回类型，而不关心方法所在的类以及方法名。方法句柄的权限检查发生在创建过程中，相较于反射调用节省了调用时反复权限检查的开销。
+
+​	方法句柄可以通过 invokeExact 以及 invoke 来调用。其中，invokeExact 要求传入的参数和所指向方法的描述符严格匹配。方法句柄还支持增删改参数的操作，这些操作是通过生成另一个充当适配器的方法句柄来实现的。
+
+​	方法句柄可以通过 invokeExact 以及 invoke 来调用。其中，invokeExact 要求传入的参数和所指向方法的描述符严格匹配。方法句柄还支持增删改参数的操作，这些操作是通过生成另一个充当适配器的方法句柄来实现的。
+
+​	invokedymaic 指令抽象出调用点的概念，并且将调用该调用点所链接的方法句柄。在第一次执行 invokedynamic 指令时，Java 虚拟机将执行它所对应的启动方法，生成并且绑定一个调用点。之后如果再次执行该指令，Java 虚拟机则直接调用已经绑定了的调用点所链接的方法。
+
+​	Lambda 表达式到函数式接口的转换是通过 invokedynamic 指令来实现的。该 invokedynamic 指令对应的启动方法将通过 ASM 生成一个适配器类。对于没有捕获其他变量的 Lambda 表达式，该 invokedynamic 指令始终返回同一个适配器类的实例。对于捕获了其他变量的 Lambda 表达式，每次执行 invokedynamic 指令将新建一个适配器类实例。
+
+​	不管是捕获型的还是未捕获型的 Lambda 表达式，它们的性能上限皆可以达到直接调用的性能。其中，捕获型 Lambda 表达式借助了即时编译器中的逃逸分析，来避免实际的新建适配器类实例的操作。
+
 ## Java字节码
 
 ​	Java字节码为Java虚拟机所使用的指令集，该指令集包含200多个指令，使用8bit(2^8=256)就能存下，因此被称为字节码。字节码与Java虚拟机基于栈的计算模型是密不可分的。
@@ -441,102 +536,21 @@ Java 字节码中与调用相关的指令共有五种：
 | double                          | dreturn  |
 | reference                       | areturn  |
 
+## Java语法糖
 
+### 自动装箱和自动拆箱
 
-## Java处理反射
+### 泛型与类型擦除
 
-### 反射 	
+### 桥接方法
 
-​	Reflection(反射) 是 Java 程序开发语言的特征之一，它允许运行中的 Java 程序对自身进行检查。通过反射，我们可以在运行时，对于任意一个类，都能够知道这个类的所有属性和方法；对于任意一个对象，都能够调用它的任意一个方法和属性。
+### 其他语法糖
 
-#### 功能
+## 即时编译
 
-Java 反射主要提供以下功能：
+## 即时编译器的中间表达形式
 
-- 在运行时判断任意一个对象所属的类；
-- 在运行时构造任意一个类的对象；
-- 在运行时判断任意一个类所具有的成员变量和方法（通过反射甚至可以调用private方法）；
-- 在运行时调用任意一个对象的方法
-
-#### 运用
-
-​	Java反射的基本运用:
-
-	+ 获得 Class 对象。有三种方式，Class.forName("类名") 、对象.getClass() 、int.class。
-	+ 判断是否为某个类的实例。instanceof关键字或者Class.对象的isInstance()方法。
-	+ 创建实例。使用Class对象的newInstance()方法来创建Class对象对应类的实例。或者先通过Class对象获取指定的Constructor对象，再调用Constructor对象的newInstance()方法来创建实例。
-	+ 获取方法。`getDeclaredMethods` 方法返回类或接口声明的所有方法，包括公共、保护、默认（包）访问和私有方法，但不包括继承的方法。`getMethods` 方法返回某个类的所有公用（public）方法，包括其继承类的公用方法。
-	+ 获取类的成员变量（字段）信息。`getFiled`：访问公有的成员变量。`getDeclaredField`：所有已声明的成员变量，但不能得到其父类的成员变量
-	+ 调用方法。Method.invoke
-	+ 利用反射创建数组。Array.newInstance(Class<?>,int)
-
-### 反射调用实现
-
-​	方法的反射调用通过Method.invoke实现，方法执行时会委派给MethodAccessor执行。MethodAccessor 是一个接口，它有两个已有的具体实现：一个通过本地方法来实现反射调用，另一个则使用了委派模式。每个 Method 实例的第一次反射调用都会生成一个委派实现，它所委派的具体实现便是一个本地实现(C++调用)。
-
-~~~java
-    public Object invoke(Object obj, Object... args)
-        throws IllegalAccessException, IllegalArgumentException,
-           InvocationTargetException
-    {
-        if (!override) {
-            Class<?> caller = Reflection.getCallerClass();
-            checkAccess(caller, clazz,
-                        Modifier.isStatic(modifiers) ? null : obj.getClass(),
-                        modifiers);
-        }
-        MethodAccessor ma = methodAccessor;             // read volatile
-        if (ma == null) {
-            ma = acquireMethodAccessor();
-        }
-        return ma.invoke(obj, args);
-    }
-~~~
-
-​	反射调用先是调用了 Method.invoke，然后进入委派实现（DelegatingMethodAccessorImpl），再然后进入本地实现（NativeMethodAccessorImpl），最后到达目标方法。
-
-​	Java 的反射调用机制还设立了另一种动态生成字节码的实现（下称动态实现），直接使用 invoke 指令来调用目标方法。之所以采用委派实现，便是为了能够在本地实现以及动态实现中切换。
-
-~~~java
-// 动态实现的伪代码，这里只列举了关键的调用逻辑，其实它还包括调用者检测、参数检测的字节码。
-// 生成直接调用方法的Java代码，和平时写的方法调用一样
-package jdk.internal.reflect;
-public class GeneratedMethodAccessor1 extends ... { 
-    @Overrides 
-    public Object invoke(Object obj, Object[] args) throws ... { 
-    	Test.target((int) args[0]); 
-        return null; 
-    }
-}
-~~~
-
-​	动态实现和本地实现相比，其运行效率要快上 20 倍  。这是因为动态实现无需经过 Java 到 C++ 再到 Java 的切换，但由于生成字节码十分耗时，仅调用一次的话，反而是本地实现要快上 3 到 4 倍 。
-
-​	考虑到许多反射调用仅会执行一次，Java 虚拟机设置了一个阈值 15（可以通过 -Dsun.reflect.inflationThreshold= 来调整），当某个反射调用的调用次数在 15 之下时，采用本地实现；当达到 15 时，便开始动态生成字节码，并将委派实现的委派对象切换至动态实现，这个过程我们称之为 Inflation。反射调用的 Inflation 机制是可以通过参数（-Dsun.reflect.noInflation=true）来关闭的。这样一来，在反射调用一开始便会直接生成动态实现，而不会使用委派实现或者本地实现。
-
-### 反射调用开销
-
-​	反射调用涉及到Class.forName，Class.getMethod 以及 Method.invoke 三个操作。其中，Class.forName 会调用本地方法，Class.getMethod 则会遍历该类的公有方法。如果没有匹配到，它还将遍历父类的公有方法。以 getMethod 为代表的查找方法操作，会返回查找得到结果的一份拷贝，将带来额外的堆空间消耗。
-
-​	方法的反射调用会带来不少性能开销，原因主要有三个：变长参数方法导致的 Object 数组(Method.invoke是个变长参数)	，基本类型的自动装箱、拆箱，还有最重要的方法内联。
-
-## JVM实现invokedynamic
-
-​	在 Java 中，方法调用会被编译为 invokestatic，invokespecial，invokevirtual 以及 invokeinterface 四种指令。这些指令与包含目标方法类名、方法名以及方法描述符的符号引用捆绑。在实际运行之前，Java 虚拟机将根据这个符号引用链接到具体的目标方法。在这四种调用指令中，Java 虚拟机明确要求方法调用需要提供目标方法的类名。
-
-​	Java 7 引入了一条新的指令 invokedynamic。该指令的调用机制抽象出调用点这一个概念，并允许应用程序将调用点链接至任意符合条件的方法上。 invokedynamic的实现基于方法句柄（MethodHandle）。
-
-​	方法句柄是一个强类型的、能够被直接执行的引用。它仅关心所指向方法的参数类型以及返回类型，而不关心方法所在的类以及方法名。方法句柄的权限检查发生在创建过程中，相较于反射调用节省了调用时反复权限检查的开销。
-
-​	方法句柄可以通过 invokeExact 以及 invoke 来调用。其中，invokeExact 要求传入的参数和所指向方法的描述符严格匹配。方法句柄还支持增删改参数的操作，这些操作是通过生成另一个充当适配器的方法句柄来实现的。
-
-​	方法句柄可以通过 invokeExact 以及 invoke 来调用。其中，invokeExact 要求传入的参数和所指向方法的描述符严格匹配。方法句柄还支持增删改参数的操作，这些操作是通过生成另一个充当适配器的方法句柄来实现的。
-
-​	invokedymaic 指令抽象出调用点的概念，并且将调用该调用点所链接的方法句柄。在第一次执行 invokedynamic 指令时，Java 虚拟机将执行它所对应的启动方法，生成并且绑定一个调用点。之后如果再次执行该指令，Java 虚拟机则直接调用已经绑定了的调用点所链接的方法。
-
-​	Lambda 表达式到函数式接口的转换是通过 invokedynamic 指令来实现的。该 invokedynamic 指令对应的启动方法将通过 ASM 生成一个适配器类。对于没有捕获其他变量的 Lambda 表达式，该 invokedynamic 指令始终返回同一个适配器类的实例。对于捕获了其他变量的 Lambda 表达式，每次执行 invokedynamic 指令将新建一个适配器类实例。
-
-​	不管是捕获型的还是未捕获型的 Lambda 表达式，它们的性能上限皆可以达到直接调用的性能。其中，捕获型 Lambda 表达式借助了即时编译器中的逃逸分析，来避免实际的新建适配器类实例的操作。
+## 方法内联
 
 ## Java对象内存布局
 
