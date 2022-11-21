@@ -2122,3 +2122,4 @@ git reset：
 				异步confirm模式(async)：10542.06
 		消费者:
 			手动ACK
+

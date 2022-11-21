@@ -617,3 +617,50 @@ List扩容生成的大对象直接进入老年代
    2、动态绑定，当Suvivor中年龄相同的对象数量超过一半，则年龄大于等于该年龄的的对象转移到老年代，无需等到设置的最大年龄值。
 
    3、新生成的大对象直接进入老年代。
+
+10.27
+   反射：在运行时可以动态获取类的所有属性，可以调用实例的方法。
+      方法调用反射通过Method.invoke执行，Method.invoke会委托给MethodAccessor执行，MethodAccessor有两种实现，一种是NativeMethodAccessorImpl(本地方法调用，C++调用，比较耗时)，另一种是DelegatingMethodAccessorImpl(委托调用，动态生成调用类直接调用)。
+
+      MQ工作模式。如何监听收到消息
+RabbitListener(method) -> MethodRabbitListenerEndpoint(method、bean、queueNames) + RabbitListenerContainerFactory(rabbitListenerContainerFactory) -> RabbitListenerEndpointRegistrar#registerEndpoint -> MessageListenerContainer -> Executor#execute
+
+Spring处理事务时，宕机了，事务怎么办
+What happens when machine is shutdown between mysql transaction execution?
+Yes, “mid-transaction” operations are effectively ROLLBACK’d - and their changes undone when the server comes back up - while transactions that execute their COMMIT statement before the shutdown thread hits them will COMMIT.
+
+Note that this only applies for storage engines such as InnoDB or XtraDB that support transactions. Behavior in this situation is undefined for MyISAM as it doesn’t support transactions.
+
+invokedynamic
+   invokestatic、invokespecifical、invokevirtual、invokeinterface都需要类名才能去调用
+   invokedynamic不需要类名，只需要入参和返回值即可。通过方法句柄实现
+      方法句柄(MethodHandle)
+         1.执行方式invokeExact(严格模式，参数类型严格匹配，不允许派生类型)和invoke
+         2.只在创建时进行检查，使用时不检查
+
+         使用方式:
+            1.在类中创建MethodHandles.look
+            MethodHandles.Lookup lookup = MethodHandles.lookup();   
+            mt = MethodType.methodType(String.class, char.class, char.class);   
+            mh = lookup.findVirtual(String.class, "replace", mt);   
+            s = (String) mh.invokeExact("daddy",'d','n');
+
+对象内存布局
+对象头
+   mark oop
+      包含hash值，GC分代年龄，锁信息等。占8个字节
+   klass oop
+      类型指针，指向所属类的信息。64位操作系统中，如果开启压缩指针占4个字节，不开启占8个字节
+   数组长度
+      数组类型独有int类型，4字节
+
+   默认情况下，要求JVM对象大小为8字节的倍数，大小不够的需要填充。8字节(参数)可以修改，但是修改过大会导致内存浪费。
+   压缩指针的原理是将原本指向内存地址的指针指向了对象地址。如4个停车位，大车1占1和2两个车位，大车2占3和4两个车位，未开启压缩指针是按车位寻找，比如车位3，然后找到了大车2
+
+Java内存模型
+   即使编译器在满足if-as-serial时会对代码进行重排序(单线程下可能会改变执行顺序，但不会改变执行结果)
+   happend-before：读读屏障，读写屏障，写写屏障，写读屏障
+   volatile
+
+方法内联
+   对于虚方法，有完全去虚化，和条件去虚化。
