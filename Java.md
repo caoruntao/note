@@ -898,6 +898,340 @@ public static void bar(boolean cond) {
 
 ​	另一种死代码消除则是不可达分支消除。不可达分支就是任何程序路径都不可到达的分支，我们之前已经多次接触过了。在即时编译过程中，我们经常因为方法内联、常量传播以及基于 profile 的优化等，生成许多不可达分支。通过消除不可达分支，即时编译器可以精简数据流，并且减少编译时间以及最终生成机器码的大小。
 
+### 循环优化
+
+#### 循环无关代码外提
+
+​	循环无关代码（Loop-invariant Code），指的是循环中值不变的表达式。如果能够在不改变程序语义的情况下，将这些循环无关代码提出循环之外，那么程序便可以避免重复执行这些表达式，从而达到性能提升的效果。
+
+#### 循环展开
+
+​	它指的是在循环体中重复多次循环迭代，并减少循环次数的编译优化。
+
+​	在 C2 中，只有计数循环（Counted Loop）才能被展开。所谓的计数循环需要满足如下四个条件。
+
+  		1.	维护一个循环计数器，并且基于计数器的循环出口只有一个（但可以有基于其他判断条件的出口）。
+  		2.	循环计数器的类型为 int、short 或者 char（即不能是 byte、long，更不能是 float 或者 double）。
+  		3.	每个迭代循环计数器的增量为常数。
+  		4.	循环计数器的上限（增量为正数）或下限（增量为负数）是循环无关的数值。
+
+​		循环展开的缺点显而易见：它可能会增加代码的冗余度，导致所生成机器码的长度大幅上涨。不过，随着循环体的增大，优化机会也会不断增加。一旦循环展开能够触发进一步的优化，总体的代码复杂度也将降低。
+
+​	循环展开有一种特殊情况，那便是完全展开（Full Unroll）。当循环的数目是固定值而且非常小时，即时编译器会将循环全部展开。此时，原本循环中的循环判断语句将不复存在，取而代之的是若干个顺序执行的循环体。即时编译器会在循环体的大小与循环展开次数之间做出权衡。例如，对于仅迭代三次（或以下）的循环，即时编译器将进行完全展开；对于循环体 IR 节点数目超过阈值的循环，即时编译器则不会进行任何循环展开。
+
+#### 其他循环优化
+
+​	除了循环无关代码外提以及循环展开之外，即时编译器还有两个比较重要的循环优化技术：循环判断外提（loop unswitching）以及循环剥离（loop peeling）。
+
+​	循环判断外提指的是将循环中的 if 语句外提至循环之前，并且在该 if 语句的两个分支中分别放置一份循环代码。循环判断外提与循环无关检测外提所针对的代码模式比较类似，都是循环中的 if 语句。不同的是，后者在检查失败时会抛出异常，中止当前的正常执行路径；而前者所针对的是更加常见的情况，即通过 if 语句的不同分支执行不同的代码逻辑。
+
+​	循环剥离指的是将循环的前几个迭代或者后几个迭代剥离出循环的优化方式。一般来说，循环的前几个迭代或者后几个迭代都包含特殊处理。通过将这几个特殊的迭代剥离出去，可以使原本的循环体的规律性更加明显，从而触发进一步的优化。
+
+### 向量化
+
+##### 	SIMD 指令
+
+​	我们知道，X86_64 体系架构上通用寄存器的大小为 64 位（即 8 个字节），无法暂存这些超长的数据。因此，即时编译器将借助长度足够的 XMM 寄存器，来完成 int 数组与 long 数组的向量化读取和写入操作。（为了实现方便，byte 数组的向量化读取、写入操作同样使用了 XMM 寄存器。）
+
+​	所谓的 XMM 寄存器，是由 SSE（Streaming SIMD Extensions）指令集所引入的。它们一开始仅为 128 位。自从 X86 平台上的 CPU 开始支持 AVX（Advanced Vector Extensions）指令集后（2011 年），XMM 寄存器便升级为 256 位，并更名为 YMM 寄存器。原本使用 XMM 寄存器的指令，现将使用 YMM 寄存器的低 128 位。前几年推出的 AVX512 指令集，更是将 YMM 寄存器升级至 512 位，并更名为 ZMM 寄存器。
+
+​	SSE 指令集以及之后的 AVX 指令集都涉及了一个重要的概念，那便是单指令流多数据流（Single Instruction Multiple Data，SIMD），即通过单条指令操控多组数据的计算操作。这些指令我们称之为 SIMD 指令。
+
+​	SIMD 指令将 XMM 寄存器（或 YMM 寄存器、ZMM 寄存器）中的值看成多个整数或者浮点数组成的向量，并且批量进行计算。
+
+​	举例来说，128 位 XMM 寄存器里的值可以看成 16 个 byte 值组成的向量，或者 8 个 short 值组成的向量，4 个 int 值组成的向量，两个 long 值组成的向量；而 SIMD 指令PADDB、PADDW、PADDD以及PADDQ，将分别实现 byte 值、short 值、int 值或者 long 值的向量加法。
+
+​	下图中内存的右边是高位，寄存器的左边是高位，因此数组元素的顺序是反过来的。![数组和寄存器高位对比](.\static\image\数组和寄存器高位对比.webp)
+
+​	也就是说，原本需要c.length次加法操作的代码，现在最少只需要c.length/4次向量加法即可完成。因此，SIMD 指令也被看成 CPU 指令级别的并行。这里c.length/4次是理论值。现实中，C2 还将考虑缓存行对齐等因素，导致能够应用向量化加法的仅有数组中间的部分元素。
+
+#### 使用 SIMD 指令的 HotSpot Intrinsic
+
+​	SIMD 指令虽然非常高效，但是使用起来却很麻烦。这主要是因为不同的 CPU 所支持的 SIMD 指令可能不同。一般来说，越新的 SIMD 指令，它所支持的寄存器长度越大，功能也越强。为了能够尽量利用新的 SIMD 指令，我们需要提前知道程序会被运行在支持哪些指令集的 CPU 上，并在编译过程中选择所支持的 SIMD 指令中最新的那些。
+
+​	我们知道，Java 虚拟机所执行的 Java 字节码是平台无关的。它首先会被解释执行，而后反复执行的部分才会被 Java 虚拟机即时编译为机器码。简而言之，在进行即时编译时，Java 虚拟机已经运行在目标 CPU 之上，可以轻易地得知其所支持的指令集。然而，Java 字节码的平台无关性却引发了另一个问题，那便是 Java 程序无法像 C++ 程序那样，直接使用由 Intel 提供的，将被替换为具体 SIMD 指令的 intrinsic 方法。
+
+​	HotSpot 虚拟机提供的替代方案是 Java 层面的 intrinsic 方法，这些 intrinsic 方法的语义要比单个 SIMD 指令复杂得多。在运行过程中，HotSpot 虚拟机将根据当前体系架构来决定是否将对该 intrinsic 方法的调用替换为另一高效的实现。如果不，则使用原本的 Java 实现。
+
+​	这些 intrinsic 方法只能做到点覆盖，在不少情况下，应用程序并不会用到这些 intrinsic 的语义，却又存在向量化优化的机会。这个时候，我们便需要借助即时编译器中的自动向量化（auto vectorization）。
+
+#### 自动向量化
+
+​	即时编译器的自动向量化将针对能够展开的计数循环，进行向量化优化。如这段代码，即时编译器便能够自动将其展开优化成使用PADDD指令的向量加法。
+
+```java
+
+void foo(int[] a, int[] b, int[] c) {
+  for (int i = 0; i < c.length; i++) {
+    c[i] = a[i] + b[i];
+  }
+}
+```
+
+​	之前描述过计数循环的判定，现在说下自动向量化的条件。
+
+ 	1.	循环变量的增量应为 1，即能够遍历整个数组。
+ 	2.	循环变量不能为 long 类型，否则 C2 无法将循环识别为计数循环。
+ 	3.	循环迭代之间最好不要有数据依赖，例如出现类似于a[i] = a[i-1]的语句。当循环展开之后，循环体内存在数据依赖，那么 C2 无法进行自动向量化。
+ 	4.	循环体内不要有分支跳转。
+ 	5.	不要手工进行循环展开。如果 C2 无法自动展开，那么它也将无法进行自动向量化。
+
+​	我们可以看到，自动向量化的条件较为苛刻。而且，C2 支持的整数向量化操作并不多，据我所致只有向量加法，向量减法，按位与、或、异或，以及批量移位和批量乘法。C2 还支持向量点积的自动向量化，即两两相乘再求和，不过这需要多条 SIMD 指令才能完成，因此并不是十分高效。
+
+​	为了解决向量化 intrinsic 以及自动向量化覆盖面过窄的问题，我们在 OpenJDK 的 Paname 项目[3]中尝试引入开发人员可控的向量化抽象。该抽象将提供一套通用的跨平台 API，让 Java 程序能够定义诸如IntVector的向量，并使用由它提供的一系列向量化 intrinsic 方法。即时编译器负责将这些 intrinsic 的调用转换为符合当前体系架构 /CPU 的 SIMD 指令。如果你感兴趣的话，可以参考 Vladimir Ivanov 今年在 JVMLS 上的演讲。
+
+### 注解处理器
+
+​	注解（annotation）是 Java 5 引入的，用来为类、方法、字段、参数等 Java 结构提供额外信息的机制。比如，Java 核心类库中的@Override注解是被用来声明某个实例方法重写了父类的同名同参数类型的方法。
+
+```java
+
+package java.lang;
+
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.SOURCE)
+public @interface Override {
+}
+```
+
+​	@Override注解本身被另外两个元注解（即作用在注解上的注解）所标注。其中，@Target用来限定目标注解所能标注的 Java 结构，这里@Override便只能被用来标注方法。@Retention则用来限定当前注解生命周期。注解共有三种不同的生命周期：SOURCE，CLASS或RUNTIME，分别表示注解只出现在源代码中，只出现在源代码和字节码中，以及出现在源代码、字节码和运行过程中。
+
+​	这里@Override便只能出现在源代码中。一旦标注了@Override的方法所在的源代码被编译为字节码，该注解便会被擦除。不难猜到，@Override仅对 Java 编译器有用。事实上，它会为 Java 编译器引入了一条新的编译规则，即如果所标注的方法不是 Java 语言中的重写方法，那么编译器会报错。而当编译完成时，它的使命也就结束了。
+
+​	Java 的注解机制允许开发人员自定义注解。这些自定义注解同样可以为 Java 编译器添加编译规则。不过，这种功能需要由开发人员提供，并且以插件的形式接入 Java 编译器中，这些插件我们称之为注解处理器（annotation processor）。除了**引入新的编译规则**之外，注解处理器还可以用于**修改已有的 Java 源文件（不推荐**），或者**生成新的 Java 源文件**。
+
+#### 注解处理器的原理
+
+![注解处理器工作流程](.\static\image\注解处理器工作流程.webp)
+
+如上图所示 ，Java 源代码的编译过程可分为三个步骤：
+
+1. 将源文件解析为抽象语法树；
+2. 调用已注册的注解处理器；
+3. 生成字节码。
+
+如果在第 2 步调用注解处理器过程中生成了新的源文件，那么编译器将重复第 1、2 步，解析并且处理新生成的源文件。每次重复我们称之为一轮（Round）。也就是说，第一轮解析、处理的是输入至编译器中的已有源文件。如果注解处理器生成了新的源文件，则开始第二轮、第三轮，解析并且处理这些新生成的源文件。当注解处理器不再生成新的源文件，编译进入最后一轮，并最终进入生成字节码的第 3 步。
+
+#### 自定义注解编译器引入新的编译规则
+
+##### 自定义注解
+
+​	首先需要自定义注解，比如自定义注解@CheckGetter，用于检查被标记的类或字段是否拥有GET方法。
+
+```java
+
+package foo;
+
+import java.lang.annotation.*;
+
+@Target({ ElementType.TYPE, ElementType.FIELD })
+@Retention(RetentionPolicy.SOURCE)
+public @interface CheckGetter {
+}
+```
+
+##### 自定义注解处理器	
+
+接下来需要实现一个处理@CheckGetter注解的处理器。它将遍历被标注的类中的实例字段，并检查有没有相应的getter方法。
+
+```java
+
+public interface Processor {
+
+  void init(ProcessingEnvironment processingEnv);
+  
+  Set<String> getSupportedAnnotationTypes();
+  
+  SourceVersion getSupportedSourceVersion();
+  
+  boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv);
+  
+  ...
+}
+```
+
+​	所有的注解处理器类都要实现接口Processor。该接口主要由四个重要方法。
+
+	1.	init方法用来存放注解处理器的初始化代码。之所以不用构造器，是因为在 Java 编译器中，注解处理器的实例是通过反射 API 生成的。也正是因为使用反射 API，每个注解处理器类都需要定义一个无参数构造器。通常来说，当编写注解处理器时，我们不声明任何构造器，并依赖于 Java 编译器，为之插入一个无参数构造器。而具体的初始化代码，则放入init方法之中。
+	1.	getSupportedAnnotationTypes方法将返回注解处理器所支持的注解类型，这些注解类型只需用字符串形式表示即可。
+	1.	getSupportedSourceVersion方法将返回该处理器所支持的 Java 版本，通常，这个版本需要与你的 Java 编译器版本保持一致。
+	1.	process方法则是最为关键的注解处理方法
+
+​		JDK 提供了一个实现Processor接口的抽象类AbstractProcessor。该抽象类实现了init、getSupportedAnnotationTypes和getSupportedSourceVersion方法。它的子类可以通过@SupportedAnnotationTypes和@SupportedSourceVersion注解来声明所支持的注解类型以及 Java 版本。
+
+```java
+
+package bar;
+
+import java.util.Set;
+
+import javax.annotation.processing.*;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.*;
+import javax.lang.model.util.ElementFilter;
+import javax.tools.Diagnostic.Kind;
+
+import foo.CheckGetter;
+
+@SupportedAnnotationTypes("foo.CheckGetter")
+@SupportedSourceVersion(SourceVersion.RELEASE_10)
+public class CheckGetterProcessor extends AbstractProcessor {
+
+  @Override
+  public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+    // TODO: annotated ElementKind.FIELD
+    for (TypeElement annotatedClass : ElementFilter.typesIn(roundEnv.getElementsAnnotatedWith(CheckGetter.class))) {
+      for (VariableElement field : ElementFilter.fieldsIn(annotatedClass.getEnclosedElements())) {
+        if (!containsGetter(annotatedClass, field.getSimpleName().toString())) {
+          processingEnv.getMessager().printMessage(Kind.ERROR,
+              String.format("getter not found for '%s.%s'.", annotatedClass.getSimpleName(), field.getSimpleName()));
+        }
+      }
+    }
+    return true;
+  }
+
+  private static boolean containsGetter(TypeElement typeElement, String name) {
+    String getter = "get" + name.substring(0, 1).toUpperCase() + name.substring(1).toLowerCase();
+    for (ExecutableElement executableElement : ElementFilter.methodsIn(typeElement.getEnclosedElements())) {
+      if (!executableElement.getModifiers().contains(Modifier.STATIC)
+          && executableElement.getSimpleName().toString().equals(getter)
+          && executableElement.getParameters().isEmpty()) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+```
+
+​	该注解处理器仅重写了process方法。这个方法将接收两个参数，分别代表该注解处理器所能处理的注解类型，以及囊括当前轮生成的抽象语法树的RoundEnvironment。由于该处理器针对的注解仅有@CheckGetter一个，而且我们并不会读取注解中的值，因此第一个参数并不重要。
+
+​	process方法涉及各种不同类型的Element，分别指代 Java 程序中的各个结构。如TypeElement指代类或者接口，VariableElement指代字段、局部变量、enum 常量等，ExecutableElement指代方法或者构造器。
+
+##### 注册自定义注解处理器
+
+在将该注解处理器编译成 class 文件后，我们便可以将其注册为 Java 编译器的插件，并用来处理其他源代码。
+
+###### 使用 javac 命令的-processor参数
+
+```bash
+javac -cp /CLASSPATH/TO/CheckGetterProcessor -processor bar.CheckGetterProcessor Foo.java
+```
+
+###### SPI
+
+将注解处理器编译生成的 class 文件压缩入 jar 包中，并在 jar 包的配置文件中记录该注解处理器的包名及类名，即bar.CheckGetterProcessor。
+
+在 ‘META-INF/services/javax.annotation.processing.Processor’ 路径下配置
+
+```
+bar.CheckGetterProcessor
+```
+
+当启动 Java 编译器时，它会寻找 classpath 路径上的 jar 包是否包含上述配置文件，并自动注册其中记录的注解处理器。
+
+###### 通过IDE 中配置注解处理器
+
+#### 利用注解处理器生成源代码
+
+​	注解处理器可以用来修改已有源代码或者生成源代码。确切地说，注解处理器并不能真正地修改已有源代码。这里指的是修改由 Java 源代码生成的抽象语法树，在其中修改已有树节点或者插入新的树节点，从而使生成的字节码发生变化。对抽象语法树的修改涉及了 Java 编译器的内部 API，这部分很可能随着版本变更而失效。因此，并不推荐这种修改方式。
+
+​	用注解处理器来生成源代码则比较常用。通过Filer.createSourceFile方法获得一个类似于文件的概念，并通过PrintWriter将具体的内容一一写入即可。当将该注解处理器作为插件接入 Java 编译器时，编译前面的源代码将生成新的代码，并且触发新一轮的编译。
+
+### 基准测试框架JMH
+
+#### 性能基准测试
+
+​	性能测试要考虑JVM(即时编译器优化)、操作系统和硬件系统所带来的影响。
+
+​	JVM要考虑热点代码，即时编译器优化，方法内联等。操作系统要考虑CPU缓存、分支预测器、超线程技术。硬件系统要考虑温度对硬件的影响。
+
+​	就 CPU 缓存而言，如果程序的数据本地性较好，那么它的性能指标便会非常好；如果程序存在 false sharing 的问题，即几个线程写入内存中属于同一缓存行的不同部分，那么它的性能指标便会非常糟糕。
+
+​	超线程技术是另一个可能误导性能测试工具的因素。超线程技术将为每个物理核心虚拟出两个虚拟核心，从而尽可能地提高物理核心的利用率。如果性能测试的两个线程被安排在同一物理核心上，那么得到的测试数据显然要比被安排在不同物理核心上的数据糟糕得多。
+
+#### JMH（Java Microbenchmark Harness）
+
+​	JMH 是一个面向 Java 语言或者其他 Java 虚拟机语言的性能基准测试框架。它针对的是纳秒级别（出自官网介绍，个人觉得精确度没那么高）、微秒级别、毫秒级别，以及秒级别的性能测试。
+
+​	JMH 内置了许多功能来控制即时编译器的优化。对于其他影响性能评测的因素，JMH 也提供了不少策略来降低影响，甚至是彻底解决。因此，使用这个性能基准测试框架的开发人员，可以将精力完全集中在所要测试的业务逻辑，并以最小的代价控制除了业务逻辑之外的可能影响性能的因素。
+
+​	通常来说，性能基准测试的结果反映的是所测试的业务逻辑在所运行的 Java 虚拟机，操作系统，硬件系统这一组合上的性能指标，而根据这些性能指标得出的通用结论则需要经过严格论证。
+
+##### 生成JMH项目
+
+```bash
+$ mvn archetype:generate \
+          -DinteractiveMode=false \
+          -DarchetypeGroupId=org.openjdk.jmh \
+          -DarchetypeArtifactId=jmh-java-benchmark-archetype \
+          -DgroupId=org.sample \
+          -DartifactId=test \
+          -Dversion=1.21
+$ cd test
+```
+
+​	该命令将在当前目录下生成一个test文件夹（对应参数-DartifactId=test，可更改），其中便包含了定义该 maven 项目依赖的pom.xml文件，以及自动生成的测试文件src/main/org/sample/MyBenchmark.java（这里org/sample对应参数-DgroupId=org.sample，可更改）
+
+```java
+
+/*
+ * Copyright ...
+ */
+package org.sample;
+
+import org.openjdk.jmh.annotations.Benchmark;
+
+public class MyBenchmark {
+
+    @Benchmark
+    public void testMethod() {
+        // This is a demo/sample template for building your JMH benchmarks. Edit as needed.
+        // Put your benchmark code here.
+    }
+
+}
+```
+
+​	这里面，类名MyBenchmark以及方法名testMethod可以随意更改。重要的是@Benchmark注解。被它标注的方法，便是 JMH 基准测试的测试方法。
+
+##### 编译和运行JMH项目
+
+​	JMH 利用注解处理器来自动生成性能测试的代码。除了@Benchmark之外，JMH 的注解处理器还将处理所有位于org.openjdk.jmh.annotations包下的注解。
+
+​	编译项目
+
+```bash
+
+$ mvn compile
+$ ls target/generated-sources/annotations/org/sample/generated/
+MyBenchmark_jmhType.java            MyBenchmark_jmhType_B1.java         MyBenchmark_jmhType_B2.java         MyBenchmark_jmhType_B3.java         MyBenchmark_testMethod_jmhTest.java
+```
+
+​	在这些源代码里，所有以MyBenchmark_jmhType为前缀的 Java 类都继承自MyBenchmark。这是注解处理器的常见用法，即通过生成子类来将注解所带来的额外语义扩张成方法。具体来说，它们之间的继承关系是MyBenchmark_jmhType -> B3 -> B2 -> B1 -> MyBenchmark（这里A -> B代表 A 继承 B）。其中，B2 存放着 JMH 用来控制基准测试的各项字段。
+
+​	为了避免这些控制字段对MyBenchmark类中的字段造成 false sharing 的影响，JMH 生成了 B1 和 B3，分别存放了 256 个 boolean 字段，从而避免 B2 中的字段与MyBenchmark类、MyBenchmark_jmhType类中的字段（或内存里下一个对象中的字段）会出现在同一缓存行中。之所以不能在同一类中安排这些字段，是因为 Java 虚拟机的字段重排列。而类之间的继承关系，便可以避免不同类所包含的字段之间的重排列。
+
+​	打包项目
+
+```bash
+$ mvn package
+$ java -jar target/benchmarks.jar
+```
+
+​	这里 JMH 会有非常多的输出，输出的最后便是本次基准测试的结果。其中比较重要的两项指标是Score和Error，分别代表本次基准测试的平均吞吐量（每秒运行testMethod方法的次数）以及误差范围。
+
+##### JMH中的注解
+
+ +	@Fork代表JMH为了获得一个相对干净的虚拟机环境， 会 Fork 出一个新的 Java 虚拟机，来运行性能基准测试。通过运行更多的 Fork，并将每个 Java 虚拟机的性能测试结果平均起来，可以增强最终数据的可信度，使其误差更小。
+ +	@BenchmarkMode允许指定性能数据的格式。除了吞吐量之外，还可以输出其他格式的性能数据，例如运行一次操作的平均时间。
+ +	@Warmup可以配置预热迭代的次数以及每次迭代的持续时间。@Warmup注解有四个参数，分别为预热迭代的次数iterations，每次迭代持续的时间time和timeUnit（前者是数值，后者是单位。例如上面代码代表的是每次迭代持续 100 毫秒），以及每次操作包含多少次对测试方法的调用batchSize。
+ +	@Measurement配置测试迭代。可配置选项和@Warmup的一致。与预热迭代不同的是，每个 Fork 中测试迭代的数目越多，我们得到的性能数据也就越精确。
+ +	@State配置程序的状态。通常来说，我们所要测试的业务逻辑只是整个应用程序中的一小部分，例如某个具体的 web app 请求。这要求在每次调用测试方法前，程序处于准备接收请求的状态。我们可以把上述场景抽象一下，变成程序从某种状态到另一种状态的转换，而性能测试，便是在收集该转换的性能数据。JMH 提供了@State注解，被它标注的类便是程序的状态。由于 JMH 将负责生成这些状态类的实例，因此，它要求状态类必须拥有无参数构造器，以及当状态类为内部类时，该状态类必须是静态的。JMH 还将程序状态细分为整个虚拟机的程序状态，线程私有的程序状态，以及线程组私有的程序状态，分别对应@State注解的参数Scope.Benchmark，Scope.Thread和Scope.Group。需要注意的是，这里的线程组并非 JDK 中的那个概念。
+ +	@Setup和@TearDown在测试前初始化程序状态，在测试后校验程序状态。和 JUnit 测试一样，被它们标注的方法必须是状态类中的方法。而且，JMH 并不限定状态类中@Setup方法以及@TearDown方法的数目。当存在多个@Setup方法或者@TearDown方法时，JMH 将按照定义的先后顺序执行。
+	+	@CompilerControl控制每个方法是否内联。
+
 ## Java对象内存布局
 
 ### 对象结构
