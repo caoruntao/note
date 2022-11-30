@@ -1230,7 +1230,78 @@ $ java -jar target/benchmarks.jar
  +	@Measurement配置测试迭代。可配置选项和@Warmup的一致。与预热迭代不同的是，每个 Fork 中测试迭代的数目越多，我们得到的性能数据也就越精确。
  +	@State配置程序的状态。通常来说，我们所要测试的业务逻辑只是整个应用程序中的一小部分，例如某个具体的 web app 请求。这要求在每次调用测试方法前，程序处于准备接收请求的状态。我们可以把上述场景抽象一下，变成程序从某种状态到另一种状态的转换，而性能测试，便是在收集该转换的性能数据。JMH 提供了@State注解，被它标注的类便是程序的状态。由于 JMH 将负责生成这些状态类的实例，因此，它要求状态类必须拥有无参数构造器，以及当状态类为内部类时，该状态类必须是静态的。JMH 还将程序状态细分为整个虚拟机的程序状态，线程私有的程序状态，以及线程组私有的程序状态，分别对应@State注解的参数Scope.Benchmark，Scope.Thread和Scope.Group。需要注意的是，这里的线程组并非 JDK 中的那个概念。
  +	@Setup和@TearDown在测试前初始化程序状态，在测试后校验程序状态。和 JUnit 测试一样，被它们标注的方法必须是状态类中的方法。而且，JMH 并不限定状态类中@Setup方法以及@TearDown方法的数目。当存在多个@Setup方法或者@TearDown方法时，JMH 将按照定义的先后顺序执行。
-	+	@CompilerControl控制每个方法是否内联。
+ +	@CompilerControl控制每个方法是否内联。
+
+### Java虚拟机的监控及诊断工具
+
+#### jps
+
+​	打印所有正在运行的 Java 进程的相关信息。
+
+​	在默认情况下，jps的输出信息包括 Java 进程的进程 ID 以及主类名。我们还可以通过追加参数，来打印额外的信息。例如，-l将打印模块名以及包名；-v将打印传递给 Java 虚拟机的参数（如-XX:+UnlockExperimentalVMOptions -XX:+UseZGC）；-m将打印传递给主类的参数。
+
+​	如果某 Java 进程关闭了默认开启的UsePerfData参数（即使用参数-XX:-UsePerfData），那么jps命令（以及下面介绍的jstat）将无法探知该 Java 进程。
+
+#### jstat
+
+​	打印目标 Java 进程的性能数据，它包括多条子命令。默认情况下，jstat只会打印一次性能数据。我们可以将它配置为每隔一段时间打印一次，直至目标 Java 进程终止，或者达到我们所配置的最大打印次数。
+
+​	jstat有一个非常有用的参数-t，它将在每行数据之前打印目标 Java 进程的启动时间。
+
+​	我们可以比较 Java 进程的启动时间以及总 GC 时间（GCT 列），或者两次测量的间隔时间以及总 GC 时间的增量，来得出 GC 时间占运行时间的比例。如果该比例超过 20%，则说明目前堆的压力较大；如果该比例超过 90%，则说明堆里几乎没有可用空间，随时都可能抛出 OOM 异常。
+
+​	jstat还可以用来判断是否出现内存泄漏。在长时间运行的 Java 程序中，我们可以运行jstat命令连续获取多行性能数据，并取这几行数据中 OU 列（即已占用的老年代内存）的最小值。然后，我们每隔一段较长的时间重复一次上述操作，来获得多组 OU 最小值。如果这些值呈上涨趋势，则说明该 Java 程序的老年代内存已使用量在不断上涨，这意味着无法回收的对象在不断增加，因此很有可能存在内存泄漏。
+
+```
+
+$ jstat -options
+-class 类加载相关的数据
+-compiler 即时编译相关的数据
+-gc 垃圾回收相关的数据
+-gccapacity
+-gccause
+-gcmetacapacity
+-gcnew
+-gcnewcapacity
+-gcold
+-gcoldcapacity
+-gcutil
+-printcompilation 即时编译相关的数据
+```
+
+#### jmap
+
+​	分析 Java 虚拟机堆中的对象。
+
+```
+jamp 子命令:
+-clstats，该子命令将打印被加载类的信息。
+-finalizerinfo，该子命令将打印所有待 finalize 的对象。
+-histo，该子命令将统计各个类的实例数目以及占用内存，并按照内存使用量从多至少的顺序排列。此外，-histo:live只统计堆中的存活对象。
+-dump，该子命令将导出 Java 虚拟机堆的快照。同样，-dump:live只保存堆中的存活对象。我们通常会利用
+```
+
+​	由于jmap将访问堆中的所有对象，为了保证在此过程中不被应用线程干扰，jmap需要借助安全点机制，让所有线程停留在不改变堆中数据的状态。也就是说，由jmap导出的堆快照必定是安全点位置的。这可能导致基于该堆快照的分析结果存在偏差。举个例子，假设在编译生成的机器码中，某些对象的生命周期在两个安全点之间，那么:live选项将无法探知到这些对象。另外，如果某个线程长时间无法跑到安全点，jmap将一直等下去。
+
+​	jstat则不同。这是因为垃圾回收器会主动将jstat所需要的摘要数据保存至固定位置之中，而jstat只需直接读取即可。
+
+​	jmap（以及jinfo、jstack和jcmd）依赖于 Java 虚拟机的Attach API，因此只能监控本地 Java 进程。一旦开启 Java 虚拟机参数DisableAttachMechanism（即使用参数-XX:+DisableAttachMechanism），基于 Attach API 的命令将无法执行。反过来说，如果你不想被其他进程监控，那么你需要开启该参数。
+
+#### jinfo
+
+​	查看目标 Java 进程的参数。如传递给 Java 虚拟机的-X（即输出中的 jvm_args）、-XX参数（即输出中的 VM Flags），以及可在 Java 层面通过System.getProperty获取的-D参数（即输出中的 System Properties）。
+
+#### jstack
+
+​	打印目标 Java 进程中各个线程的栈轨迹，以及这些线程所持有的锁。
+
+​	jstack的其中一个应用场景便是死锁检测。jstack不仅会打印线程的栈轨迹、线程状态（BLOCKED）、持有的锁（locked …）以及正在请求的锁（waiting to lock …），而且还会分析出具体的死锁。
+
+#### jcmd
+
+​	使用jcmd命令，可以来替代前面除了jstat之外的所有命令。
+
+​	至于jstat的功能，虽然jcmd复制了jstat的部分代码，并支持通过PerfCounter.print子命令来打印所有的 Performance Counter，但是它没有保留jstat的输出格式，也没有重复打印的功能。
 
 ## Java对象内存布局
 
