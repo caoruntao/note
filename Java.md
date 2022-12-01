@@ -1303,6 +1303,79 @@ jamp 子命令:
 
 ​	至于jstat的功能，虽然jcmd复制了jstat的部分代码，并支持通过PerfCounter.print子命令来打印所有的 Performance Counter，但是它没有保留jstat的输出格式，也没有重复打印的功能。
 
+#### eclipse MAT
+
+​	解析Java 虚拟机堆的二进制快照的工具。快照可以使用jmap导出，也可以使用MAT本身获取。eclipse  MAT获取时将借助jps列出当前正在运行的 Java 进程，以供选择并获取快照。由于jps会将自己列入其中，因此你会在列表中发现一个已经结束运行的jps进程。获取快照的本质都是在使用Attach API。
+
+​	MAT 计算对象占据内存的有两种方式。第一种是 Shallow heap，指的是对象自身所占据的内存。第二种是 Retained heap，指的是当对象不再被引用时，垃圾回收器所能回收的总内存，包括对象自身所占据的内存，以及仅能够通过该对象引用到的其他对象所占据的内存。
+
+​	MAT 包括了两个比较重要的视图，分别是直方图（histogram）和支配树（dominator tree）。
+
+​	MAT 的直方图和jmap的-histo子命令一样，都能够展示各个类的实例数目以及这些实例的 Shallow heap 总和。但是，MAT 的直方图还能够计算 Retained heap，并支持基于实例数目或 Retained heap 的排序方式（默认为 Shallow heap）。此外，MAT 还可以将直方图中的类按照超类、类加载器或者包名分组。
+
+​	支配树的概念源自图论。在一则流图（flow diagram）中，如果从入口节点到 b 节点的所有路径都要经过 a 节点，那么 a 支配（dominate）b。在 a 支配 b，且 a 不同于 b 的情况下（即 a 严格支配 b），如果从 a 节点到 b 节点的所有路径中不存在支配 b 的其他节点，那么 a 直接支配（immediate dominate）b。这里的支配树指的便是由节点的直接支配节点所组成的树状结构。
+
+​	需要注意的是，对象的引用型字段未必对应支配树中的父子节点关系。假设对象 a 拥有两个引用型字段，分别指向 b 和 c。而 b 和 c 各自拥有一个引用型字段，但都指向 d。如果没有其他引用指向 b、c 或 d，那么 a 直接支配 b、c 和 d，而 b（或 c）和 d 之间不存在支配关系。当在支配树视图中选中某一对象时，我们还可以通过 Path To GC Roots 功能，反向列出该对象到 GC Roots 的引用路径。
+
+​	MAT 还将自动匹配内存泄漏中的常见模式，并汇报潜在的内存泄漏问题。
+
+#### Java Mission Control
+
+​	Java Mission Control（JMC）是 Java 虚拟机平台上的性能监控工具。它包含一个 GUI 客户端，以及众多用来收集 Java 虚拟机性能数据的插件，如 JMX Console（能够访问用来存放虚拟机各个子系统运行数据的MXBeans），以及虚拟机内置的高效 profiling 工具 Java Flight Recorder（JFR）。
+
+​	JFR 的性能开销很小，在默认配置下平均低于 1%。与其他工具相比，JFR 能够直接访问虚拟机内的数据，并且不会影响虚拟机的优化。因此，它非常适用于生产环境下满负荷运行的 Java 程序。当启用时，JFR 将记录运行过程中发生的一系列事件。其中包括 Java 层面的事件，如线程事件、锁事件，以及 Java 虚拟机内部的事件，如新建对象、垃圾回收和即时编译事件。
+
+​	按照发生时机以及持续时间来划分，JFR 的事件共有四种类型，它们分别为以下四种。
+
+1. 瞬时事件（Instant Event），用户关心的是它们发生与否，例如异常、线程启动事件。
+2. 持续事件（Duration Event），用户关心的是它们的持续时间，例如垃圾回收事件。
+3. 计时事件（Timed Event），是时长超出指定阈值的持续事件。
+4. 取样事件（Sample Event），是周期性取样的事件。取样事件的其中一个常见例子便是方法抽样（Method Sampling），即每隔一段时间统计各个线程的栈轨迹。如果在这些抽样取得的栈轨迹中存在一个反复出现的方法，那么我们可以推测该方法是热点方法。
+
+​	JFR 的取样事件要比其他工具更加精确。以方法抽样为例，其他工具通常基于 JVMTI（Java Virtual Machine Tool Interface）的GetAllStackTraces API。该 API 依赖于安全点机制，其获得的栈轨迹总是在安全点上，由此得出的结论未必精确。JFR 则不然，它不依赖于安全点机制，因此其结果相对来说更加精确。
+
+​	JFR 的启用方式主要有三种。
+
+​	第一种是在运行目标 Java 程序时添加-XX:StartFlightRecording=参数。如
+
+```
+# Time fixed
+$ java -XX:StartFlightRecording=delay=5s,duration=20s,filename=myrecording.jfr,settings=profile MyApp
+```
+
+​	JFR 将会在 Java 虚拟机启动 5s 后（对应delay=5s）收集数据，持续 20s（对应duration=20s）。当收集完毕后，JFR 会将收集得到的数据保存至指定的文件中（对应filename=myrecording.jfr）。settings=profile指定了 JFR 所收集的事件类型。默认情况下，JFR 将加载配置文件$JDK/lib/jfr/default.jfc，并识别其中所包含的事件类型。当使用了settings=profile配置时，JFR 将加载配置文件$JDK/lib/jfr/profile.jfc。该配置文件所包含的事件类型要多于默认的default.jfc，因此性能开销也要大一些（约为 2%）。default.jfc以及profile.jfc均为 XML 文件。后面我会介绍如何利用 JMC 来进行修改。
+
+```
+# Continuous, dump on exit
+$ java -XX:StartFlightRecording=dumponexit=true,filename=myrecording.jfr MyApp
+```
+
+​	JFR 将在 Java 虚拟机启动之后持续收集数据，直至进程退出。在进程退出时（对应dumponexit=true），JFR 会将收集得到的数据保存至指定的文件中。
+
+```
+# Continuous, dump on demand
+$ java -XX:StartFlightRecording=maxage=10m,maxsize=100m,name=SomeLabel MyAppStarted recording 1.
+
+Use jcmd 38502 JFR.dump name=SomeLabel filename=FILEPATH to copy recording data to file.
+...
+```
+
+​	JFR 将在 Java 虚拟机启动之后持续收集数据，直至进程退出。该命令不会主动保存 JFR 收集得到的数据。，maxage=10m指的是仅保留 10 分钟以内的事件，maxsize=100m指的是仅保留 100MB 以内的事件。一旦所收集的事件达到其中任意一个限制，JFR 便会开始清除不合规格的事件。
+
+​	然而，为了保持较小的性能开销，JFR 并不会频繁地校验这两个限制。因此，在实践过程中你往往会发现指定文件的大小超出限制，或者文件中所存储事件的时间超出限制。
+
+​	该命令不会主动保存 JFR 收集得到的数据。用户需要运行jcmd JFR.dump命令方能保存。
+
+
+
+​	第二种启用方式，即通过jcmd来让 JFR 开始收集数据、停止收集数据，或者保存所收集的数据，对应的子命令分别为JFR.start，JFR.stop，以及JFR.dump。
+
+​	JFR.start子命令所接收的配置及格式和-XX:StartFlightRecording=参数的类似。这些配置包括delay、duration、settings、maxage、maxsize以及name。前几个参数我们都已经介绍过了，最后一个参数name就是一个标签，当同一进程中存在多个 JFR 数据收集操作时，我们可以通过该标签来辨别。在启动目标进程时，我们不再添加-XX:StartFlightRecording=参数。在目标进程运行过程中，我们可以运行JFR.start子命令远程启用目标进程的 JFR 功能。
+
+​	
+
+​	第三种启用 JFR 的方式则是 JMC 中的 JFR 插件。
+
 ## Java对象内存布局
 
 ### 对象结构
