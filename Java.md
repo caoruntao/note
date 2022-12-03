@@ -1376,6 +1376,144 @@ Use jcmd 38502 JFR.dump name=SomeLabel filename=FILEPATH to copy recording data 
 
 ​	第三种启用 JFR 的方式则是 JMC 中的 JFR 插件。
 
+### JNI(Java Native Interface)
+
+​	**JNI** （**Java Native Interface，Java本地接口**）是一种编程框架，使得Java虚拟机中的Java程序可以调用本地应用/或库(Java 核心类库无法提供的/某个体系架构或者操作系统特有的功能)，也可以被其他程序调用。这种方式会牺牲可移植性。
+
+​	Java 中标记为native的、没有方法体的方法就是JNI的例子。当在 Java 代码中调用这些 native 方法时，Java 虚拟机将通过 JNI，调用至对应的 C 函数。
+
+​	举个例子，Object.hashCode方法便是一个 native 方法。它对应的 C 函数将计算对象的哈希值，并缓存在对象头、栈上锁记录（轻型锁）或对象监视锁（重型锁所使用的 monitor）中，以确保该值在对象的生命周期之内不会变更。
+
+#### native 方法的链接
+
+​	在调用 native 方法前，Java 虚拟机需要将该 native 方法链接至对应的 C 函数上。
+
+​	链接方式主要有两种。
+
+​	第一种是让 Java 虚拟机自动查找符合默认命名规范的 C 函数，并且链接起来。可以使用javac -h命令，便可以根据 Java 程序中的 native 方法声明，自动生成包含符合命名规范的 C 函数的头文件。native 方法对应的 C 函数都需要以Java\_为前缀，之后跟着完整的包名和方法名。由于 C 函数名不支持/字符，因此我们需要将/转换为\_，而原本方法名中的\_符号，则需要转换为\_1。当某个类出现重载的 native 方法时，Java 虚拟机还会将参数类型纳入自动链接对象的考虑范围之中。具体的做法便是在前面 C 函数名的基础上，追加\_\_以及方法描述符作为后缀。方法描述符的特殊符号同样会被替换掉，如引用类型所使用的;会被替换为\_2，数组类型所使用的[会被替换为_3。
+
+​	第二种链接方式则是在 C 代码中主动链接。这种链接方式对 C 函数名没有要求。通常我们会使用一个名为registerNatives的 native 方法，并按照第一种链接方式定义所能自动链接的 C 函数。在该 C 函数中，我们将手动链接该类的其他 native 方法。
+
+​	举个例子，Object类便拥有一个registerNatives方法，所对应的 C 代码如下所示：
+
+```java
+
+// 注：Object类的registerNatives方法的实现位于java.base模块里的C代码中
+static JNINativeMethod methods[] = {
+    {"hashCode",    "()I",                    (void *)&JVM_IHashCode},
+    {"wait",        "(J)V",                   (void *)&JVM_MonitorWait},
+    {"notify",      "()V",                    (void *)&JVM_MonitorNotify},
+    {"notifyAll",   "()V",                    (void *)&JVM_MonitorNotifyAll},
+    {"clone",       "()Ljava/lang/Object;",   (void *)&JVM_Clone},
+};
+
+JNIEXPORT void JNICALL
+Java_java_lang_Object_registerNatives(JNIEnv *env, jclass cls)
+{
+    (*env)->RegisterNatives(env, cls,
+                            methods, sizeof(methods)/sizeof(methods[0]));
+}
+```
+
+​	当使用第二种方式进行链接时，我们需要在其他 native 方法被调用之前完成链接工作。因此，我们往往会在类的初始化方法里调用该registerNatives方法。具体示例如下所示：
+
+```java
+public class Object {
+    private static native void registerNatives();
+    static {
+        registerNatives();
+    }
+}
+```
+
+​		在使用JNI时，需要将C函数编译为动态链接库，这里需要注意的是，动态链接库的名字须以lib为前缀，以.dylib(或 Linux 上的.so）为扩展名。
+
+```bash
+# 该命令仅适用于macOS
+$ gcc -I$JAVA_HOME/include -I$JAVA_HOME/include/darwin -o libfoo.dylib -shared foo.c
+```
+
+​	如果libfoo.dylib不在当前路径下，我们可以在启动 Java 虚拟机时配置java.library.path参数，使其指向包含libfoo.dylib的文件夹。具体命令如下所示：
+
+```bash
+$ java -Djava.library.path=/PATH/TO/DIR/CONTAINING/libfoo.dylib org.example.FooHello, World
+```
+
+#### JNI 的 API
+
+​	在 C 代码中，我们也可以使用 Java 的语言特性，如 instanceof 测试等。这些功能都是通过特殊的 JNI 函数（JNI Functions）来实现的。
+
+​	Java 虚拟机会将所有 JNI 函数的函数指针聚合到一个名为JNIEnv的数据结构之中。这是一个线程私有的数据结构。Java 虚拟机会为每个线程创建一个JNIEnv，并规定 C 代码不能将当前线程的JNIEnv共享给其他线程，否则 JNI 函数的正确性将无法保证。
+
+​	这么设计的原因主要有两个。一是给 JNI 函数提供一个单独命名空间。二是允许 Java 虚拟机通过更改函数指针替换 JNI 函数的具体实现，例如从附带参数类型检测的慢速版本，切换至不做参数类型检测的快速版本。在 HotSpot 虚拟机中，JNIEnv被内嵌至 Java 线程的数据结构之中。部分虚拟机代码甚至会从JNIEnv的地址倒推出 Java 线程的地址。因此，如果在其他线程中使用当前线程的JNIEnv，会使这部分代码错误识别当前线程。
+
+​	JNI 会将 Java 层面的基本类型以及引用类型映射为另一套可供 C 代码使用的数据结构。其中，基本类型的对应关系如下表所示：
+
+| Java类型 | C数据结构 |
+| -------- | --------- |
+| boolean  | jboolean  |
+| byte     | jbyte     |
+| char     | jchar     |
+| short    | jshort    |
+| int      | jint      |
+| float    | jfloat    |
+| long     | jlong     |
+| double   | jdouble   |
+| void     | jvoid     |
+
+​	引用类型对应的数据结构之间也存在着继承关系，具体如下所示：
+
+```
+
+jobject
+|- jclass (java.lang.Class objects)
+|- jstring (java.lang.String objects)
+|- jthrowable (java.lang.Throwable objects)
+|- jarray (arrays)
+   |- jobjectArray (object arrays)
+   |- jbooleanArray (boolean arrays)
+   |- jbyteArray (byte arrays)
+   |- jcharArray (char arrays)
+   |- jshortArray (short arrays)
+   |- jintArray (int arrays)
+   |- jlongArray (long arrays)
+   |- jfloatArray (float arrays)
+   |- jdoubleArray (double arrays)
+```
+
+​	在C代码中获取字段:
+
+```c
+// foo.c
+#include <stdio.h>
+#include "org_example_Foo.h"
+
+JNIEXPORT void JNICALL Java_org_example_Foo_bar__Ljava_lang_String_2Ljava_lang_Object_2
+  (JNIEnv *env, jobject thisObject, jstring str, jobject obj) {
+  jclass cls = (*env)->GetObjectClass(env, thisObject);
+  jfieldID fieldID = (*env)->GetFieldID(env, cls, "i", "I");
+  jint value = (*env)->GetIntField(env, thisObject, fieldID);
+  printf("Hello, World 0x%x\n", value);
+  return;
+}
+```
+
+​	我们可以看到，在 JNI 中访问字段类似于反射 API：我们首先需要通过类实例获得FieldID，然后再通过FieldID获得某个实例中该字段的值。与 Java 代码相比，上述代码处理异常的方式不同。当调用 JNI 函数时，Java 虚拟机便已生成异常实例，并缓存在内存中的某个位置。与 Java 编程不一样的是，它并不会显式地跳转至异常处理器或者调用者中，而是继续执行接下来的 C 代码。因此，当从可能触发异常的 JNI 函数返回时，我们需要通过 JNI 函数ExceptionOccurred检查是否发生了异常，并且作出相应的处理。如果无须抛出该异常，那么我们需要通过 JNI 函数ExceptionClear显式地清空已缓存的异常。
+
+	#### 局部引用与全局引用
+
+​	在 C 代码中，我们可以访问所传入的引用类型参数，也可以通过 JNI 函数创建新的 Java 对象。这些 Java 对象显然也会受到垃圾回收器的影响。因此，Java 虚拟机需要一种机制，来告知垃圾回收算法，不要回收这些 C 代码中可能引用到的 Java 对象。这种机制便是 JNI 的局部引用（Local Reference）和全局引用（Global Reference）。垃圾回收算法会将被这两种引用指向的对象标记为不可回收。
+
+​	事实上，无论是传入的引用类型参数，还是通过 JNI 函数（除NewGlobalRef及NewWeakGlobalRef之外）返回的引用类型对象，都属于局部引用。不过，一旦从 C 函数中返回至 Java 方法之中，那么局部引用将失效。也就是说，垃圾回收器在标记垃圾时不再考虑这些局部引用。
+
+​	这就意味着，我们不能缓存局部引用，以供另一 C 线程或下一次 native 方法调用时使用。对于这种应用场景，我们需要借助 JNI 函数NewGlobalRef，将该局部引用转换为全局引用，以确保其指向的 Java 对象不会被垃圾回收。相应的，我们还可以通过 JNI 函数DeleteGlobalRef来消除全局引用，以便回收被全局引用指向的 Java 对象。此外，当 C 函数运行时间极其长时，我们也应该考虑通过 JNI 函数DeleteLocalRef，消除不再使用的局部引用，以便回收被引用的 Java 对象。
+
+​	另一方面，由于垃圾回收器可能会移动对象在内存中的位置，因此 Java 虚拟机需要另一种机制，来保证局部引用或者全局引用将正确地指向移动过后的对象。HotSpot 虚拟机是通过**句柄（handle）**来完成上述需求的。这里句柄指的是内存中 Java 对象的指针的指针。当发生垃圾回收时，如果 Java 对象被移动了，那么句柄指向的指针值也将发生变动，但句柄本身保持不变。
+
+​	无论是局部引用还是全局引用，都是句柄。其中，局部引用所对应的句柄有两种存储方式，一是在本地方法栈帧中，主要用于存放 C 函数所接收的来自 Java 层面的引用类型参数；另一种则是线程私有的句柄块，主要用于存放 C 函数运行过程中创建的局部引用。
+
+​	当从 C 函数返回至 Java 方法时，本地方法栈帧中的句柄将会被自动清除。而线程私有句柄块则需要由 Java 虚拟机显式清理。进入 C 函数时对引用类型参数的句柄化，和调整参数位置（C 调用和 Java 调用传参的方式不一样），以及从 C 函数返回时清理线程私有句柄块，共同造就了 JNI 调用的额外性能开销。
+
 ## Java对象内存布局
 
 ### 对象结构
