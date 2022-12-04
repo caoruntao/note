@@ -1500,7 +1500,7 @@ JNIEXPORT void JNICALL Java_org_example_Foo_bar__Ljava_lang_String_2Ljava_lang_O
 
 ​	我们可以看到，在 JNI 中访问字段类似于反射 API：我们首先需要通过类实例获得FieldID，然后再通过FieldID获得某个实例中该字段的值。与 Java 代码相比，上述代码处理异常的方式不同。当调用 JNI 函数时，Java 虚拟机便已生成异常实例，并缓存在内存中的某个位置。与 Java 编程不一样的是，它并不会显式地跳转至异常处理器或者调用者中，而是继续执行接下来的 C 代码。因此，当从可能触发异常的 JNI 函数返回时，我们需要通过 JNI 函数ExceptionOccurred检查是否发生了异常，并且作出相应的处理。如果无须抛出该异常，那么我们需要通过 JNI 函数ExceptionClear显式地清空已缓存的异常。
 
-	#### 局部引用与全局引用
+#### 局部引用与全局引用
 
 ​	在 C 代码中，我们可以访问所传入的引用类型参数，也可以通过 JNI 函数创建新的 Java 对象。这些 Java 对象显然也会受到垃圾回收器的影响。因此，Java 虚拟机需要一种机制，来告知垃圾回收算法，不要回收这些 C 代码中可能引用到的 Java 对象。这种机制便是 JNI 的局部引用（Local Reference）和全局引用（Global Reference）。垃圾回收算法会将被这两种引用指向的对象标记为不可回收。
 
@@ -1513,6 +1513,113 @@ JNIEXPORT void JNICALL Java_org_example_Foo_bar__Ljava_lang_String_2Ljava_lang_O
 ​	无论是局部引用还是全局引用，都是句柄。其中，局部引用所对应的句柄有两种存储方式，一是在本地方法栈帧中，主要用于存放 C 函数所接收的来自 Java 层面的引用类型参数；另一种则是线程私有的句柄块，主要用于存放 C 函数运行过程中创建的局部引用。
 
 ​	当从 C 函数返回至 Java 方法时，本地方法栈帧中的句柄将会被自动清除。而线程私有句柄块则需要由 Java 虚拟机显式清理。进入 C 函数时对引用类型参数的句柄化，和调整参数位置（C 调用和 Java 调用传参的方式不一样），以及从 C 函数返回时清理线程私有句柄块，共同造就了 JNI 调用的额外性能开销。
+
+### Java Agent
+
+​	在JDK1.5版本开始，Java增加了Instrumentation(Java Agent API)和JVMTI(JVM Tool Interface)功能，该功能可以实现JVM在加载某个class文件对其字节码进行修改，也可以对已经加载的字节码进行一个重新的加载。而在1.6版本新增了attach(附加方式)方式，可以对运行中的Java进程插入Agent。Java Agent可以去实现字节码插桩、动态跟踪分析等。
+
+#### 运行模式
+
+​	Java Agent需要以jar包的形式运行或加载，我们需要将编写好的Agent程序打包成一个jar文件。并且，Java Agent还强制要求了所有的jar文件中必须包含/META-INF/MANIFEST.MF文件，且该文件中必须定义Premain-Class(静态负载)或Agent-Class(动态负载)配置。
+
+##### 静态负载(premain，启动时添加)
+
+​	在应用程序启动时加载 Java 代理称为静态加载。 在执行任何代码之前，静态加载会在启动时修改字节码。静态加载使用*premain*方法，该方法将在任何应用程序代码运行之前运行(在agent.jar的MANIFEST.MF指定的Premain-class)：	
+
+```
+java -javaagent:agent.jar -jar application.jar
+```
+
+##### 动态负载(agentmain，运行时附加)
+
+​	将 Java 代理加载到已运行的 JVM 中的过程称为动态加载，使用Java Attach API连接代理(在agent.jar的MANIFEST.MF指定的Agent-Class)。
+
+```java
+VirtualMachine jvm = VirtualMachine.attach(jvmPid);
+jvm.loadAgent(agentFile.getAbsolutePath());
+```
+
+#### Java Agent类
+
+​	Java Agent和普通的Java类并没有任何区别，普通的Java程序中规定了main方法为程序入口，而Java Agent则将premain和agentmain作为了Agent程序的入口，两者所接受的参数是完全一致的，如下：
+
+```java
+public static void premain(String args, Instrumentation inst) {} 
+public static void agentmain(String args, Instrumentation inst) {}
+```
+
+`premain()`方法有两种写法,如下：
+
+```java
+public static void premain(String agentArgs, Instrumentation inst)    
+public static void premain(String agentArgs)
+```
+
+`agentmain`方法允许以下面两种方式定义：
+
+```
+public static void agentmain(String agentArgs)
+public static void agentmain(String agentArgs, Instrumentation inst)
+```
+
+JVM会去优先加载带 Instrumentation 签名的方法，加载成功忽略第二种，如果第一种没有，则加载第二种方法。
+
+#### Instrumentation
+
+​	Instrumentation接口的方法允许在运行时操作java程序，提供了诸如改变字节码，新增jar包，替换class等功能，而通过这些功能使Java具有了更强的动态控制和解释能力。Instrumentation中有3个方法比较重要和常用，分别为addTransformer、removeTransformer和redefineClasses 。
+
+##### addTransformer
+
+​	该方法允许我们在类加载之前，重新定义Class。
+
+```java
+void addTransformer(ClassFileTransformer transformer);
+```
+
+​	ClassFileTransformer是一个接口，只有一个`transform`方法，它在主程序的`main`方法执行前，装载的每个类都要经过`transform`执行一次，可以将它称为转换器。
+
+​	ClassFileTransformer可以实现profile的收集。
+
+##### redefineClasses
+
+​	重定义class，通俗点来讲的话就是实现指定类的替换。
+
+```java
+void redefineClasses(ClassDefinition... definitions) throws  ClassNotFoundException, UnmodifiableClassException;
+```
+
+​	它的参数是可变长的`ClassDefinition`数组，再看一下`ClassDefinition`的构造方法：
+
+```java
+public ClassDefinition(Class<?> theClass,byte[] theClassFile) {...}
+```
+
+​	`ClassDefinition`中指定了的Class对象和修改后的字节码数组，简单来说，就是使用提供的类文件字节，替换了原有的类。并且，在`redefineClasses`方法重定义的过程中，传入的是`ClassDefinition`的数组，它会按照这个数组顺序进行加载，以便满足在类之间相互依赖的情况下进行更改。
+
+##### retransformClasses
+
+​	`retransformClasses`应用于agentmain模式，可以在类加载之后重新定义Class，即触发类的重新加载。
+
+```java
+void retransformClasses(Class<?>... classes) throws UnmodifiableClassException;
+```
+
+​	它的参数`classes`是需要转换的类数组，可变长参数也说明了它和`redefineClasses`方法一样，也可以批量转换类的定义。
+
+##### 其他方法
+
+```
+removeTransformer：删除一个ClassFileTransformer类转换器
+getAllLoadedClasses：获取当前已经被加载的Class
+getInitiatedClasses：获取由指定的ClassLoader加载的Class
+getObjectSize：获取一个对象占用空间的大小
+appendToBootstrapClassLoaderSearch：添加jar包到启动类加载器
+appendToSystemClassLoaderSearch：添加jar包到系统类加载器
+isNativeMethodPrefixSupported：判断是否能给native方法添加前缀，即是否能够拦截native方法
+setNativeMethodPrefix：设置native方法的前缀
+```
+
+​	
 
 ## Java对象内存布局
 
