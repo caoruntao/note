@@ -1,40 +1,94 @@
 # Spring
 
-## 综述
+Spring Framework版本:5.2.2.RELEASE
 
-### 总览:
+## 框架总览
 
+### 特性总览
 
+#### 核心特性
 
-### Ioc容器:
+##### Ioc容器(IoC Container)
 
-​	依赖查找、依赖注入、依赖来源、Ioc容器生命周期
+##### Spring事件(Events)
 
-### Bean:
+##### 资源管理(Resources)
 
-​	实例、作用域、生命周期
+##### 国际化(i18n)
 
-### 元信息:
+##### 校验(Validation)
 
-​	注解、配置元信息、外部化属性
+##### 数据绑定(Data Binding)
 
-### 基础设置:
+##### 类型转换(Type Conversion)
 
-​	资源管理
+##### Spring表达式(Soring Express Language)
 
-​	类型转换
+##### 面向切面编程(AOP)
 
-​	数据绑定
+#### 数据存储
 
-​	数据校验
+##### JDBC
 
-​	国际化
+##### 事务抽象(Trasactions)
 
-​	事件
+##### DAO支持(DAO Support)
 
-​	泛型处理
+##### O/R映射(O/R Mapping)
 
-### 模块
+##### XML编列(XML Meashalling)
+
+#### Web技术
+
+##### Web Servlet
+
+###### Spring MVC
+
+###### WebSocket
+
+###### SockJS
+
+##### Web Reactive
+
+###### Spring WebFlux
+
+###### WebClient
+
+###### WebSocket
+
+#### 技术整合
+
+###### 远程调用
+
+###### Java消息服务(JMS)
+
+###### Java连接架构(JCA)
+
+###### Java管理扩展(JMX)
+
+###### Java邮件客户端(Email)
+
+###### 本地任务(Tasks)
+
+###### 本地调度(Scheduling)
+
+###### 缓存抽象(Caching)
+
+###### Spring 测试(Testing)
+
+#### 测试
+
+###### 模拟对象(Mock Objects)
+
+###### TestContext(TestContext Framework)
+
+###### Spring MVC(Spring MVC Test)
+
+###### Web测试客户端(WebTestClient)
+
+### 版本特性
+
+### 模块化设计
 
 Spring-core:核心模块，包括类型转换
 
@@ -56,17 +110,21 @@ Spring-web flux:
 
 Spring-web:
 
-### JDK API实践
+### 技术整合
 
-#### 1.2
+#### Java语言特性
+
+#### JDK API实践
+
+1.2
 
 反射(Reflection):MethodMatcher
 
-#### 1.3
+1.3
 
 动态代理(Dynamic Proxy):JdkDynamicAopProxy
 
-#### 5
+5
 
 注解
 
@@ -78,7 +136,7 @@ JUC:ThreadPoolTaskScheduler
 
 格式化(Formatter):DateFormatter
 
-#### 6
+6
 
 JDBC 4.0:JdbcTemplate
 
@@ -86,13 +144,13 @@ Common Annotations(JSR 250):CommonAnnotationBeanPostProcesser
 
 JAXB 2.0:Jaxb2Marshaller
 
-#### 7
+7
 
 Fork/Join:ForkJoinPoolFactoryBean
 
 NIO 2(JSR 203):PathResource
 
-#### 8
+8
 
 Strem API(JSR 335):StreamConverter
 
@@ -103,7 +161,7 @@ Date And Time Api:DateTimeContext
 lambda
 CompletableFuture
 
-### 技术整合
+#### Java EE API整合
 
 RMI
 
@@ -114,4 +172,103 @@ JMX
 本地任务
 
 本地调度
+
+### 编程模型
+
+#### 面向对象
+
+##### 契约接口
+
+​	Aware：
+
+​	BeanPostProcessor：
+
+##### 设计模式
+
+​	观察者
+
+##### 继承
+
+​	Abstract*
+
+#### 面向切面
+
+​	动态代理：JdkDynamicAopProxy
+
+​	字节码提升：Cglib
+
+#### 面向元数据
+
+##### 注解
+
+​	@Component、@Repository、@Service、@Controller
+
+##### 配置
+
+​	Environment
+
+​	@PropertySources
+
+##### 泛型
+
+​	GenemicTypeResolver
+
+​	ResolvableType
+
+##### 函数驱动
+
+​	Lambda：Function接口
+
+​	Reactive
+
+##### 模型驱动
+
+​	Enable*模式
+
+## Ioc容器
+
+### Spring IoC容器
+
+### 依赖查找
+
+### 依赖注入
+
+### 依赖来源
+
+### Spring IoC容器生命周期
+
+## Bean
+
+### Bean实例
+
+### Bean作用域
+
+### Bean生命周期
+
+## 元信息
+
+### 注解
+
+### 配置元信息
+
+### 外部化属性
+
+## 基础设施
+
+### 资源管理
+
+### 类型转换
+
+### 数据绑定
+
+### 数据校验
+
+### 国际化
+
+### 事件
+
+### 泛型处理
+
+
+
 
