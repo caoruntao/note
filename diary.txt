@@ -29,6 +29,43 @@ ConfigurationClassPostProcessor#postProcessBeanDefinitionRegistry:
 						Method#invoke:
 
 
+@Configuration处理过程: Springboot2.7
+	SpringApplication#run:  Spring Boot启动类
+		SpringApplication#createApplicationContext: 创建Spring上下文(有些Spring上下文还会创建BeanFactory)
+			AnnotationConfigServletWebServerApplicationContext.Factory#create:
+				AnnotatedBeanDefinitionReader: 注册指定的class
+					AnnotationConfigUtils#registerAnnotationConfigProcessors: 注册AnnotationConfigProcessors
+				ClassPathBeanDefinitionScanner: 扫描置顶路径，并将扫描到的BeanDefinition注册
+					设置Environment和ResourceLoader
+		SpringApplication#prepareContext
+			SpringApplication#load: 将Springboot入口类作为配置类(@Configuration标注)注册到BeanFactory
+		SpringApplication#refreshContext: 启动Spring上下文
+			AbstractApplicationContext#refresh:
+				AbstractApplicationContext#invokeBeanFactoryPostProcessors:
+					PostProcessorRegistrationDelegate#invokeBeanFactoryPostProcessors:
+						ConfigurationClassPostProcessor#postProcessBeanDefinitionRegistry:
+							ConfigurationClassPostProcessor#processConfigBeanDefinitions:
+								ConfigurationClassUtils#checkConfigurationClassCandidate: 筛选ConfigurationClass候选者
+									ConfigurationClassUtils#isConfigurationCandidate: 有@Bean注释的方法也被视为ConfigurationClass
+							ConfigurationClassParser#parse
+								ConfigurationClassParser#processConfigurationClass
+									ConfigurationClassParser#doProcessConfigurationClass:
+										ConfigurationClassParser#processMemberClasses: 处理嵌套的ConfigurationClass
+										ConfigurationClassParser#processPropertySource: 处理@PropertySource注解
+										ComponentScanAnnotationParser#parse: 处理@ComponentScan注解
+										ConfigurationClassParser#processImports: 处理@Import注解
+										ConfigurationClass#addImportedResource: 处理@ImportResource 注解
+										ConfigurationClass#addBeanMethod: 识别@Bean标注的的方法
+										处理父类，如果父类也有相关方法
+							ConfigurationClassBeanDefinitionReader#loadBeanDefinitions
+								ConfigurationClassBeanDefinitionReader#loadBeanDefinitionsForConfigurationClass
+									ConfigurationClassBeanDefinitionReader#registerBeanDefinitionForImportedConfigurationClass: 将@Import导入的类注册
+									ConfigurationClassBeanDefinitionReader#loadBeanDefinitionsForBeanMethod: 
+										将@Bean注释的方法注册为ConfigurationClassBeanDefinitionReader.ConfigurationClassBeanDefinition，且将@Bean注释的方法注册为FactoryMethod，这样创建时还会被Spring处理，但是创建实例时会使用该方法创建而不是使用反射创建。
+									ConfigurationClassBeanDefinitionReader#loadBeanDefinitionsFromImportedResources: 将@ImportResource导入的类注册
+									ConfigurationClassBeanDefinitionReader#loadBeanDefinitionsFromRegistrars: 将@ImportBeanDefinitionRegistrar导入的类注册
+
+
 
 一、网络原理
 OSI 与 TCP/IP 各层的结构与功能，都有哪些协议
@@ -2123,3 +2160,41 @@ git reset：
 		消费者:
 			手动ACK
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+问题整理：
+1.什么是Spring
+	Spring为现代Java企业应用程序提供了全面的编程和配置模型。Spring提供了IOC帮助我们配置以及管理bean，整合了各种框架为我们提供了开箱即用的功能。依赖查找/依赖注入，类型转换，数据绑定，事件，泛型等。
+2.Spring模块
+	spring-code：提供
+	spring-beans：
+	spring-context：
+	spring-aop：
+	spring-expression：
+	spring-jdbc：
+	spring-tx：
+	spring-web：
+
+3.Spring的优势和不足
+
+1.什么是IoC容器
+2.
+3.
+4.BeanFactory、FactoryBean和ObjectFactory
+	BeanFactory：对象工厂，用于创建和管理对象。
+	FactoryBean：工厂对象，用于创建复杂的对象。
+	ObjectFactory：某个类型的对象工厂，延迟实例化对象。
