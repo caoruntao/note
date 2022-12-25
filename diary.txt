@@ -54,12 +54,14 @@ ConfigurationClassPostProcessor#postProcessBeanDefinitionRegistry:
 										ConfigurationClassParser#processPropertySource: 处理@PropertySource注解
 										ComponentScanAnnotationParser#parse: 处理@ComponentScan注解
 										ConfigurationClassParser#processImports: 处理@Import注解
+											@Import导入的类会被识别为ImportSelector/ImportBeanDefinitionRegistrar/@Configuration类
+											ImportSelector导入的类会重复执行processImports来处理
 										ConfigurationClass#addImportedResource: 处理@ImportResource 注解
 										ConfigurationClass#addBeanMethod: 识别@Bean标注的的方法
 										处理父类，如果父类也有相关方法
 							ConfigurationClassBeanDefinitionReader#loadBeanDefinitions
 								ConfigurationClassBeanDefinitionReader#loadBeanDefinitionsForConfigurationClass
-									ConfigurationClassBeanDefinitionReader#registerBeanDefinitionForImportedConfigurationClass: 将@Import导入的类注册
+									ConfigurationClassBeanDefinitionReader#registerBeanDefinitionForImportedConfigurationClass: 将@Import导入的@Configuration类注册
 									ConfigurationClassBeanDefinitionReader#loadBeanDefinitionsForBeanMethod: 
 										将@Bean注释的方法注册为ConfigurationClassBeanDefinitionReader.ConfigurationClassBeanDefinition，且将@Bean注释的方法注册为FactoryMethod，这样创建时还会被Spring处理，但是创建实例时会使用该方法创建而不是使用反射创建。
 									ConfigurationClassBeanDefinitionReader#loadBeanDefinitionsFromImportedResources: 将@ImportResource导入的类注册
