@@ -88,31 +88,101 @@ Spring Framework版本:5.2.2.RELEASE
 
 ### 版本特性
 
+| Spring Framework | Java 标准版 | Java 企业版          |
+| ---------------- | ----------- | -------------------- |
+| 1.x              | 1.3+        | J2EE 1.3+            |
+| 2.x              | 1.4.2+      | J2EE 1.3+            |
+| 3.x              | 5+          | J2EE 1.4 和 JavaEE 5 |
+| 4.x              | 6+          | JavaEE 6 和 JavaEE 7 |
+| 5.x              | 8+          | JavaEE 7             |
+
 ### 模块化设计
 
-Spring-core:核心模块，包括类型转换
+spring-core:核心模块，包括类型转换
 
-Spring-bean:
+spring-beans:
 
-Spring-context:
+spring-context:
 
-Spring-aop:
+spring-aop:
 
-Spring-tx:
+spring-aspects: 对AspectJ支持
 
-Spring-jdbc:
+spring-expression:
 
-Spring-test:
+spring-instrument:
 
-Spring-web mvc:
+spring-jdbc:
 
-Spring-web flux:
+spring-orm:
 
-Spring-web:
+spring-tx:
+
+spring-oxm:
+
+spring-jms:
+
+spring-messaging:
+
+spring-web mvc:
+
+spring-web flux:
+
+spring-web:
+
+spring-websocket:
+
+spring-jcl:
+
+spring-test:
+
+spring-r2dbc:
 
 ### 技术整合
 
 #### Java语言特性
+
+1.2
+
+反射：AccessibleObject
+
+1.3
+
+动态代理：Proxy、InvocationHandler
+
+5
+
+注解：Annotation
+
+枚举：
+
+泛型：ParameterizedType
+
+自动装箱/拆箱：java.lang.Integer#valueOf(int)
+
+JUC：Executor、Lock
+
+6
+
+@Override接口
+
+7
+
+Diamond语法：List<String> list = new ArrayList<>(); 可以省略第二个<>中的类型。
+
+多Cathch/Try resouce语法糖：AutoCloseable
+
+8
+
+Lambda语法
+
+可重复注解：@Repeatable
+
+接口默认方法
+
+9
+
+模块化
 
 #### JDK API实践
 
@@ -225,7 +295,146 @@ JMX
 
 ​	Enable*模式
 
+#### 面试题
+
+1. 什么是Sring Framework
+2. Spring Framework有哪些核心模块
+3. Spring Framework的优势与不足
+
 ## Ioc容器
+
+### 重新认识Ioc容器
+
+#### Ioc发展简介
+
+好莱坞原则：don't call us, we'll call you
+
+#### Ioc主要实现策略
+
+**依赖查找**和依赖注入两种主要实现策略
+
+#### Ioc容器的职责
+
+依赖处理：
+
+​	依赖查找
+
+​	依赖注入
+
+生命周期管理： 
+
+​	容器
+
+​	托管的资源(Java Beans 或其他资源)
+
+配置：
+
+​	容器
+
+​	外部化配置
+
+​	托管的资源(Java Beans 或其他资源)
+
+#### Ioc容器的实现
+
+Java SE：
+
+​	Java Beans
+
+​	Java ServiceLoader SPI
+
+​	JNDI(Java Naming an Directory Interface)
+
+Java EE:
+
+​	EJB(Enterprise Java Beans)
+
+​	Servlet
+
+开源:
+
+​	Apache Avalon
+
+​	PicoContainer
+
+​	Google Guice
+
+​	Spring Framework
+
+#### 传统Ioc容器实现
+
+##### Java Beans
+
+依赖查找
+
+生命周期管理
+
+配置元信息：
+
+Propertys、Descriptor、PropertyEditor
+
+```
+BeanInfo beanInfo = Introspector.getBeanInfo(Clazz);
+beanInfo.getPropertyDescriptors();
+beanInfo.getMethodDescriptors();
+```
+
+事件
+
+自定义
+
+资源管理
+
+持久化
+
+#### 轻量级Ioc容器
+
+##### 特征
+
+管理应用代码运行：如程序启停
+
+快速启动
+
+容器无需特殊配置
+
+容器轻量级占用以及最小API依赖
+
+容器需要可管控
+
+##### 好处
+
+释放掉一些容器
+
+最大化代码复用
+
+更大程度的面向对象
+
+更大程度的产品化
+
+更好的可测试性
+
+#### 依赖查找 VS 依赖注入
+
+| 类型     | 依赖处理 | 实现便利性 | 代码入侵性 | API依赖性   | 可读性 |
+| -------- | -------- | ---------- | ---------- | ----------- | ------ |
+| 依赖查找 | 主动获取 | 相对繁琐   | 高侵入性   | 依赖容器API | 好     |
+| 依赖注入 | 被动提供 | 相对便利   | 低侵入性   | 不依赖API   | 一般   |
+
+#### 构造器注入 VS Setter注入
+
+##### 构造器注入
+
+相对稳定(无法修改)，并且可以控制字段的注入顺序
+
+##### Setter注入
+
+相对灵活，字段注入顺序不可控
+
+#### 面试题
+
+1. 什么是IoC
+2. 依赖查找和依赖注入的区别
+3. Spring作为IoC容器有什么优势
 
 ### Spring IoC容器
 
@@ -268,7 +477,6 @@ JMX
 ### 事件
 
 ### 泛型处理
-
 
 
 
