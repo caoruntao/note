@@ -1,6 +1,6 @@
 # Spring
 
-Spring Framework版本:5.2.2.RELEASE
+Spring Framework版本:5.2.6.RELEASE
 
 ## 框架总览
 
@@ -438,21 +438,274 @@ beanInfo.getMethodDescriptors();
 
 ### Spring IoC容器
 
-### 依赖查找
+#### 依赖查找
 
-### 依赖注入
++ 按Bean名称查找
 
-### 依赖来源
+  	+	实时查找：org.springframework.beans.factory.BeanFactory#getBean(java.lang.String)
 
-### Spring IoC容器生命周期
+  	+	延迟查找：org.springframework.beans.factory.ObjectFactory#getObject
+
++ 按Bean类型查找
+
+  + 单个Bean对象：org.springframework.beans.factory.BeanFactory#getBean(java.lang.Class<T>)
+
+  + 集合Bean对象：org.springframework.beans.factory.ListableBeanFactory#getBeansOfType(java.lang.Class<T>)
+
++ 按Bean名称+类型查找：org.springframework.beans.factory.BeanFactory#getBean(java.lang.String, java.lang.Class<T>)
+
++ 根据Java注解查找
+  + 单个Bean对象：org.springframework.beans.factory.ListableBeanFactory#findAnnotationOnBean
+  + 集合Bean对象：org.springframework.beans.factory.ListableBeanFactory#getBeansWithAnnotation
+
+#### 依赖注入
+
++ 按Bean名称注入
++ 按Bean类型注入
+  + 单个Bean对象
+  + 集合Bean对象
++ 注入容器内建Bean对象
++ 注入非Bean对象：如BeanFactory
++ 注入类型
+  + 实时注入
+  + 延迟注入
+
+#### 依赖来源
+
++ 自定义 Bean
++ 容器内建 Bean 对象
+  + Enviroment
++ 容器内建依赖
+  + BeanFactory
+
+#### 配置元信息
+
++ Bean定义配置
+  + 基于配置文件，如XML文件/Properties文件
+  + 基于Java 注解
+  + 基于Java API
++ Ioc容器配置
+  + 基于配置文件
+  + 基于Java注解
+  + 基于Java API
++ 外部化属性配置
+  + 基于Java 注解
+
+#### 实现
+
+​	BeanFactory是真正的IoC容器底层，负责管理对象(包括不仅限于Bean)。
+
+​	ApplicationContext extends BeanFactory，是BeanFactory的超集，以组合的方式添加了DefaultListableBeanFactory，并将BeanFactory相关的功能都委派给了DefaultListableBeanFactory实现，同时添加了AOP、环境、资源管理、事件和消息资源(国际化相关)等高级特性功能。
+
+#### 容器生命周期
+
++ 启动：org.springframework.context.support.AbstractApplicationContext#refresh
+
+```java
+			// Prepare this context for refreshing.
+			prepareRefresh();
+
+			// Tell the subclass to refresh the internal bean factory.
+			ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
+
+			// Prepare the bean factory for use in this context.
+			prepareBeanFactory(beanFactory);
+
+			try {
+				// Allows post-processing of the bean factory in context subclasses.
+				postProcessBeanFactory(beanFactory);
+
+				// Invoke factory processors registered as beans in the context.
+				invokeBeanFactoryPostProcessors(beanFactory);
+
+				// Register bean processors that intercept bean creation.
+				registerBeanPostProcessors(beanFactory);
+
+				// Initialize message source for this context.
+				initMessageSource();
+
+				// Initialize event multicaster for this context.
+				initApplicationEventMulticaster();
+
+				// Initialize other special beans in specific context subclasses.
+				onRefresh();
+
+				// Check for listener beans and register them.
+				registerListeners();
+
+				// Instantiate all remaining (non-lazy-init) singletons.
+				finishBeanFactoryInitialization(beanFactory);
+
+				// Last step: publish corresponding event.
+				finishRefresh();
+			}
+```
+
+
+
++ 运行
++ 停止：org.springframework.context.support.AbstractApplicationContext#close
+
+```
+
+			// Publish shutdown event.
+			publishEvent(new ContextClosedEvent(this));
+
+			// Stop all Lifecycle beans, to avoid delays during individual destruction.
+			if (this.lifecycleProcessor != null) {
+				try {
+					this.lifecycleProcessor.onClose();
+				}
+				catch (Throwable ex) {
+					logger.warn("Exception thrown from LifecycleProcessor on context close", ex);
+				}
+			}
+
+			// Destroy all cached singletons in the context's BeanFactory.
+			destroyBeans();
+
+			// Close the state of this context itself.
+			closeBeanFactory();
+
+			// Let subclasses do some final clean-up if they wish...
+			onClose();
+```
+
+#### 面试题
+
+1. 什么是Spring IoC容器
+2. BeanFactory 与 FactoryBean
+3. Spring IoC容器启动时做了哪些准备
 
 ## Bean
 
 ### Bean实例
 
+#### 定义Bean
+
+​	BeanDefinition是Spring Framework中定义Bean的配置元信息接口，包含：
+
+	+	Bean的类名
+	+	Bean行为配置元素，如作用域、自动绑定的模式、生命周期回调等
+	+	其他Bean引用，又可称为依赖
+	+	配置设置，如Bean属性(Properties)
+
+| 属性                    | 说明                                         |
+| ----------------------- | -------------------------------------------- |
+| Class                   | Bean全类名，必须是具体类，不能用抽象类或接口 |
+| Name                    | Bean的名称或ID                               |
+| Scope                   | Bean的作用域（如signleton、prototype等）     |
+| Constructor arguments   | Bean构造器参数（用于依赖注入）               |
+| Properties              | Bean属性设置（用于依赖注入）                 |
+| Autowiring mode         | Bean自动绑定模式（如byName、byType）         |
+| Lazy initialzation mode | Bean延迟初始化模式（延迟和非延迟）           |
+| Initialzation method    | Bean初始化回调方法名称                       |
+| Destruction method      | Bean销毁回调方法名称                         |
+
+​	BeanDefinition构建：
+
+	+	BeanDefinitionBuilder 
+	+	AbstractBeanDefinition以及派生类
+
+#### 命名Bean
+
+​	每个Bean拥有一个或多个标识符（identifiers），这些标识符在Bean所在的容器中是唯一的。通常。一个Bean仅有一个标识符，如果需要额外的，可以使用别名（Alias）扩充。
+
+​	Bean的id或那么属性并非必须指定，如果不指定的化，容器会为Bean生成一个唯一的名称。
+
+​	Bean名称生成器（BeanNameGenerator）
+
+	+	DefaultBeanNameGenerator。2.0.3引入
+	+	AnnotationBeanNameGenerator。2.5引入
+
+```java
+public interface BeanNameGenerator {
+
+	String generateBeanName(BeanDefinition definition, BeanDefinitionRegistry registry);
+
+}
+
+```
+
+​	Bean别名（Alias）可以复用现有的BeanDefinition、可以给第三方框架引入的Bean起一个自己命名规范的名字。
+
+```java
+public interface AliasRegistry {
+
+	void registerAlias(String name, String alias);
+	
+	...
+}
+```
+
+#### 注册Bean
+
+​	BeanDefinition注册
+
+ +	XML配置元信息：<bean name="..." .../>
+ +	Java注解配置元信息
+   +	@Bean
+   +	@Component
+   +	@Import
+ +	Java API配置元信息
+   +	命名方式：org.springframework.beans.factory.support.BeanDefinitionRegistry#registerBeanDefinition
+   +	非命名方式：org.springframework.beans.factory.support.BeanDefinitionReaderUtils#registerWithGeneratedName
+   +	配置类方法：org.springframework.context.annotation.AnnotatedBeanDefinitionReader#register
+
 ### Bean作用域
 
+	+	单例：org.springframework.beans.factory.config.ConfigurableBeanFactory#SCOPE_SINGLETON，共享一个Bean实例。
+	+	原型： org.springframework.beans.factory.config.ConfigurableBeanFactory#SCOPE_PROTOTYPE， 每次获取一个新的实例。
+
 ### Bean生命周期
+
+#### Bean实例化(Instantiation)
+
+ + 常规方式
+
+   +	通过构造器
+   +	通过静态工厂方法，指定BeanDefinition中的factoryMethodName属性。org.springframework.beans.factory.config.BeanDefinition#setFactoryMethodName
+   +	通过Bean工厂方法，指定BeanDefinition中的factoryBeanName属性和factoryMethodName属性。org.springframework.beans.factory.config.BeanDefinition#setFactoryBeanName;org.springframework.beans.factory.config.BeanDefinition#setFactoryMethodName
+
+   +	通过FactoryBean，实现org.springframework.beans.factory.FactoryBean，然后注册到IoC容器中。
+
+ + 特殊方式
+
+   +	通过ServiceLoaderFactoryBean，注册org.springframework.beans.factory.serviceloader.AbstractServiceLoaderBasedFactoryBean的派生类，指定serviceType。Spring会通过java.util.ServiceLoader#load(java.lang.Class<S>)去加载serviceType对应的实例。
+   +	通过org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory#createBean(java.lang.Class<T>)
+   +	通过org.springframework.beans.factory.support.BeanDefinitionRegistry#registerBeanDefinition
+
+#### Bean初始化(Initialzation)
+
++ @PostConstruct 标注方法。由org.springframework.beans.factory.annotation.CommonAnnotationBeanPostProcessor#postProcessBeforeInitialization处理。
++ 实现org.springframework.beans.factory.InitializingBean#afterPropertiesSet方法。org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory#invokeInitMethods处理。
++ 指定BeanDefinition的initMethodName属性。org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory#invokeCustomInitMethod处理。
+
+
+
+@Lazy标记的Bean可以延迟加载。
+
+#### Bean销毁(Destroy)
+
++ @PreDestroy标注方法。由org.springframework.beans.factory.annotation.CommonAnnotationBeanPostProcessor#postProcessBeforeDestruction处理。
+
++ 实现org.springframework.beans.factory.DisposableBean#destroy方法。org.springframework.beans.factory.support.DefaultSingletonBeanRegistry#destroyBean处理。
+
++ 指定BeanDefinition的destroyMethodName属性。org.springframework.beans.factory.support.DisposableBeanAdapter#invokeCustomDestroyMethod处理。
+
+  如果Bean指定了销毁方法，则会在org.springframework.beans.factory.support.AbstractBeanFactory#registerDisposableBeanIfNecessary处理时在IoC容器中注册DisposableBeanAdapter。
+
+#### 注册外部单例对象
+
+​	可以在IoC容器中注册外部单例对象，该单例生命周期不由容器托管。
+
+​	org.springframework.beans.factory.config.SingletonBeanRegistry#registerSingleton
+
+#### 面试题
+
+1. 如何注册一个Spring Bean
+2. 什么是Spring BeanDefinition
+3. Spring容器如何管理注册Bean
 
 ## 元信息
 
