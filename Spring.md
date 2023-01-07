@@ -373,7 +373,7 @@ Java EE:
 
 Propertys、Descriptor、PropertyEditor
 
-```
+```java
 BeanInfo beanInfo = Introspector.getBeanInfo(Clazz);
 beanInfo.getPropertyDescriptors();
 beanInfo.getMethodDescriptors();
@@ -436,29 +436,135 @@ beanInfo.getMethodDescriptors();
 2. 依赖查找和依赖注入的区别
 3. Spring作为IoC容器有什么优势
 
-### Spring IoC容器
+## Spring IoC容器
 
-#### 依赖查找
+### 依赖查找
 
 + 按Bean名称查找
-
-  	+	实时查找：org.springframework.beans.factory.BeanFactory#getBean(java.lang.String)
-
-  	+	延迟查找：org.springframework.beans.factory.ObjectFactory#getObject
-
+  +	实时查找：org.springframework.beans.factory.BeanFactory#getBean(java.lang.String)
 + 按Bean类型查找
 
   + 单个Bean对象：org.springframework.beans.factory.BeanFactory#getBean(java.lang.Class<T>)
-
   + 集合Bean对象：org.springframework.beans.factory.ListableBeanFactory#getBeansOfType(java.lang.Class<T>)
-
+  + 延迟查找：org.springframework.beans.factory.BeanFactory#getBeanProvider(java.lang.Class<T>)
 + 按Bean名称+类型查找：org.springframework.beans.factory.BeanFactory#getBean(java.lang.String, java.lang.Class<T>)
-
 + 根据Java注解查找
   + 单个Bean对象：org.springframework.beans.factory.ListableBeanFactory#findAnnotationOnBean
   + 集合Bean对象：org.springframework.beans.factory.ListableBeanFactory#getBeansWithAnnotation
 
-#### 依赖注入
+#### 前世今生
+
++ 单一类型依赖查找
+
+  + JNDI：javax.naming.Context#lookup(javax.naming.Name)
+  + JavaBeans：java.beans.beancontext.BeanContext
+
+  BeanContext继承了Collection，BeanContext中可以包含多个元素，也就是它的Bean。
+
++ 集合类型依赖查找
+
+  + java.beans.beancontext.BeanContextServices#getCurrentServiceSelectors
+
++ 层次性依赖查找
+
+  + java.beans.beancontext.BeanContext
+
+#### 单一类型依赖查找 - BeanFactory
+
++ 按Bean名称查找
+  +	实时查找：org.springframework.beans.factory.BeanFactory#getBean(java.lang.String)
++ 按Bean类型查找
+
+  + 实时查找
+    + org.springframework.beans.factory.BeanFactory#getBean(java.lang.Class<T>)
+  + 延迟查找
+    + org.springframework.beans.factory.BeanFactory#getBeanProvider(java.lang.Class<T>)
+    + org.springframework.beans.factory.BeanFactory#getBeanProvider(org.springframework.core.ResolvableType)
++ 按Bean名称+类型查找：org.springframework.beans.factory.BeanFactory#getBean(java.lang.String, java.lang.Class<T>)
++ 按Bean名称+注解：org.springframework.beans.factory.ListableBeanFactory#findAnnotationOnBean
+
+#### 集合类型依赖查找 - ListableBeanFactory
+
++ 按Bean类型查找
+  + 获取同类型Bean名称列表
+    + org.springframework.beans.factory.ListableBeanFactory#getBeanNamesForType(org.springframework.core.ResolvableType)
+    + Spring 4.2引入：org.springframework.beans.factory.ListableBeanFactory#getBeanNamesForType(org.springframework.core.ResolvableType) 
+  + 获取同类型Bran实例列表
+    + org.springframework.beans.factory.ListableBeanFactory#getBeansOfType(java.lang.Class<T>)
+
++ 通过注解类型查找
+  + 获取标注类型Bean名称列表
+    + Spring 4.0引入：org.springframework.beans.factory.ListableBeanFactory#getBeanNamesForAnnotation
+  + 获取标注类型Bran实例列表
+    + Spring 3.0引入：org.springframework.beans.factory.ListableBeanFactory#getBeansWithAnnotation
+
+#### 层次性依赖查找 - HierarchicalBeanFactory
+
++ 双亲BeanFactory：org.springframework.beans.factory.HierarchicalBeanFactory#getParentBeanFactory
+
++ 层次性查找
+
+  + 根据Bean名称查找
+
+    + org.springframework.beans.factory.HierarchicalBeanFactory#containsLocalBean
+
+    LocalBean指当前容器所包含的Bean，忽略双亲容器包含的Bean。
+
+  + 根据Bean类型查找名称列表
+
+    + org.springframework.beans.factory.BeanFactoryUtils#beanNamesForAnnotationIncludingAncestors
+    + org.springframework.beans.factory.BeanFactoryUtils#beanNamesForAnnotationIncludingAncestors
+
+  + 根据Bean类型查找实例列表
+
+    + org.springframework.beans.factory.BeanFactoryUtils#beansOfTypeIncludingAncestors(org.springframework.beans.factory.ListableBeanFactory, java.lang.Class<T>)
+
+  + 根据注解查找名称列表
+
+    + org.springframework.beans.factory.BeanFactoryUtils#beanNamesForAnnotationIncludingAncestors
+
+#### 延迟依赖查找
+
++ org.springframework.beans.factory.BeanFactory
++ Spring 4.3引入：org.springframework.beans.factory.ObjectProvider
+
+#### 安全依赖查找
+
+​	依赖查找接口没有声明抛出org.springframework.beans.BeansException异常就是安全的，否则就是非安全的。
+
+```
+BeansException
+	NoSuchBeanDefinitionException:没有匹配的Bean，可能因为不存在Bean。
+		NoUniqueBeanDefinitionException:不存在唯一匹配的Bean，可能存在多个匹配的Bean。
+	FatalBeanException
+		BeanCreationException
+		BeanInstantiationException:不能实例化，如BeanClass是接口/抽象类。
+		BeanInitializationException
+```
+
+#### 内建可查找依赖
+
+| Bean名称                    | Bean实例                             | 使用场景                                                     |
+| --------------------------- | ------------------------------------ | ------------------------------------------------------------ |
+| environment                 | Environment对象                      | 外部化配置以及Profiles                                       |
+| systemProperties            | java.util.Properties对象             | Java系统属性                                                 |
+| systemEnvironment           | java.util.Map对象                    | 操作系统环境变量                                             |
+| messageSource               | MessageSource对象                    | 国际化文案                                                   |
+| lifecycleProcessor          | LifecycleProcessor对象               | Lifecycle Bean处理器                                         |
+| applicationEventMulticaster | ApplicationEventMulticaster对象      | Spring事件广播器                                             |
+|                             | ConfigurationClassPostProcessor      | 处理@Configuration配置类                                     |
+|                             | AutowiredAnnotationBeanPostProcessor | 处理@Autowired和@Value注解                                   |
+|                             | CommonAnnotationBeanPostProcessor    | 处理@Resource、@PostConstruct和@PreDestroy注解               |
+|                             | EventListenerMethodProcessor         | 处理@EventListener注解                                       |
+|                             | DefaultEventListenerFactory          | 将@EventListener注解方法转换为ApplicationListenerMethodAdapter实例 |
+
+#### 面试题
+
+1. ObjectFactory与BeanFactory的区别
+2. BeanFactory.getBean是否是线程安全的
+3. 
+
+### 依赖注入
 
 + 按Bean名称注入
 + 按Bean类型注入
@@ -470,7 +576,7 @@ beanInfo.getMethodDescriptors();
   + 实时注入
   + 延迟注入
 
-#### 依赖来源
+### 依赖来源
 
 + 自定义 Bean
 + 容器内建 Bean 对象
@@ -478,7 +584,7 @@ beanInfo.getMethodDescriptors();
 + 容器内建依赖
   + BeanFactory
 
-#### 配置元信息
+### 配置元信息
 
 + Bean定义配置
   + 基于配置文件，如XML文件/Properties文件
@@ -585,10 +691,10 @@ beanInfo.getMethodDescriptors();
 
 ​	BeanDefinition是Spring Framework中定义Bean的配置元信息接口，包含：
 
-	+	Bean的类名
-	+	Bean行为配置元素，如作用域、自动绑定的模式、生命周期回调等
-	+	其他Bean引用，又可称为依赖
-	+	配置设置，如Bean属性(Properties)
++	Bean的类名
++	Bean行为配置元素，如作用域、自动绑定的模式、生命周期回调等
++	其他Bean引用，又可称为依赖
++	配置设置，如Bean属性(Properties)
 
 | 属性                    | 说明                                         |
 | ----------------------- | -------------------------------------------- |
@@ -604,8 +710,8 @@ beanInfo.getMethodDescriptors();
 
 ​	BeanDefinition构建：
 
-	+	BeanDefinitionBuilder 
-	+	AbstractBeanDefinition以及派生类
++	BeanDefinitionBuilder 
++	AbstractBeanDefinition以及派生类
 
 #### 命名Bean
 
@@ -615,8 +721,8 @@ beanInfo.getMethodDescriptors();
 
 ​	Bean名称生成器（BeanNameGenerator）
 
-	+	DefaultBeanNameGenerator。2.0.3引入
-	+	AnnotationBeanNameGenerator。2.5引入
++	DefaultBeanNameGenerator。2.0.3引入
++	AnnotationBeanNameGenerator。2.5引入
 
 ```java
 public interface BeanNameGenerator {
@@ -654,8 +760,8 @@ public interface AliasRegistry {
 
 ### Bean作用域
 
-	+	单例：org.springframework.beans.factory.config.ConfigurableBeanFactory#SCOPE_SINGLETON，共享一个Bean实例。
-	+	原型： org.springframework.beans.factory.config.ConfigurableBeanFactory#SCOPE_PROTOTYPE， 每次获取一个新的实例。
++	单例：org.springframework.beans.factory.config.ConfigurableBeanFactory#SCOPE_SINGLETON，共享一个Bean实例。
++	原型： org.springframework.beans.factory.config.ConfigurableBeanFactory#SCOPE_PROTOTYPE， 每次获取一个新的实例。
 
 ### Bean生命周期
 
