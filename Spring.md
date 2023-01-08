@@ -576,6 +576,45 @@ BeansException
   + 实时注入
   + 延迟注入
 
+#### 依赖注入模式和类型
+
+##### 模式
+
++ 手动模式 - 配置或者编程的方式，提前安排注入规则
+  + XML资源配置元信息
+  + Java注解配置元信息
+  + API配置元信息
++ 自动模式 - 实现方提供依赖自动关联的方式，按照内建的注入规则
+  + Autowiring（自动绑定）
+
+##### 类型
+
+| 依赖注入类型 | 配置元数据举例                                       |
+| ------------ | ---------------------------------------------------- |
+| Setter方法   | <property name="user" ref="userBean">                |
+| 构造器       | <constructor-arg name="user" ref="userBean">         |
+| 字段         | @Autowired User user;                                |
+| 方法         | @Autowired public void user(User user){...}          |
+| 接口回调     | BeanFactoryAware、ApplicationContextAware等Aware接口 |
+
+#### 自动绑定（Autowiring）
+
+自动处理依赖关系，无需显示指定。
+
+| 模式        | 说明                                                         |
+| ----------- | ------------------------------------------------------------ |
+| no          | 默认值，未激活Autowiring，需要手动指定依赖注入对象           |
+| byName      | 根据被注入属性的名称作为Bean名称进行依赖查找，并将对象设置到该属性 |
+| byType      | 根据被注入属性的类型作为依赖类型进行查找，并将对象设置到该属性 |
+| constructor | 特殊byType类型，用于构造器参数                               |
+
+限制和不足：
+
++ 手动指定依赖关系将覆盖自动绑定
++ 不能绑定简单类型，包括原生类型、String类型、Class类型等
++ 不能精确绑定，自动绑定是猜测性的
++ 存在多个匹配的Bean时，会抛出NoUniqueBeanDefinitionException
+
 ### 依赖来源
 
 + 自定义 Bean
