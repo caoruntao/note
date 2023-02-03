@@ -2169,6 +2169,10 @@ git reset：
 
 
 
+AutowiredAnnotationBeanPostProcessor#postProcessMergedBeanDefinition: 提前构建并缓存Autowiring元素信息
+	#postProcessProperties: 依赖处理
+		AutowireCapableBeanFactory#resolveDependency: 依赖查找
+			Field#set: 字段注入
 
 
 

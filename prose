@@ -1579,3 +1579,17 @@ git branch -d (branchname)
 		DES,AES
 	非对称算法
 		RSA,ECC
+
+Spring 循环依赖：使用singletonObjects、earlySingletonObjects和singletonFactories解决。
+	如果AbstractAutowireCapableBeanFactory#allowCircularReferences开启，则允许循环引用。假设A和B相互依赖，且A先初始化。
+	AbstractBeanFactory#doGetBean:
+		DefaultSingletonBeanRegistry#getSingleton:
+			AbstractAutowireCapableBeanFactory#createBean:
+				AbstractAutowireCapableBeanFactory#doCreateBean:
+					DefaultSingletonBeanRegistry#addSingletonFactory:添加addSingletonFactory
+						AbstractAutowireCapableBeanFactory#getEarlyBeanReference：当注册的singletonFactory被调用时会执行，从而获取一个代理对象
+							AbstractAutoProxyCreator#getEarlyBeanReference：返回一个目标类的代理对象
+					AbstractAutowireCapableBeanFactory#populateBean：
+						AutowiredAnnotationBeanPostProcessor#postProcessProperties：此时注入B，需要实例化。B实例化后，注入A，此时会调用之前注册的singletonFactory，从而获取A的代理对象，存入earlySingletonObjects后，注入A的代理对象。B初始化完成后会注入到A。
+					如果Bean创建时注册了singletonFactory，则会检查earlySingletonObjects是否存在自己的代理对象，如果存在则使用自己的代理对象覆盖。
+

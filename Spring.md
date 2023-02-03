@@ -799,8 +799,10 @@ public interface AliasRegistry {
 
 ### Bean作用域
 
-+	单例：org.springframework.beans.factory.config.ConfigurableBeanFactory#SCOPE_SINGLETON，共享一个Bean实例。
-+	原型： org.springframework.beans.factory.config.ConfigurableBeanFactory#SCOPE_PROTOTYPE， 每次获取一个新的实例。
+Bean作用域由BeanFactory记录。
+
++	单例：org.springframework.beans.factory.config.ConfigurableBeanFactory#SCOPE_SINGLETON，全局(BeanFactory)共享一个Bean实例，生命周期（初始化和销毁）由BeanFactory托管。
++	原型： org.springframework.beans.factory.config.ConfigurableBeanFactory#SCOPE_PROTOTYPE， 每次获取一个新的实例，由BeanFactory创建，因此负责初始化，但是BeanFactory不持有该Bean，因此不负责销毁。可在所属类销毁时手动调用prototype Bean销毁。
 
 ### Bean生命周期
 
