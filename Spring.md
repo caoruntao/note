@@ -576,9 +576,7 @@ BeansException
   + 实时注入
   + 延迟注入
 
-#### 依赖注入模式和类型
-
-##### 模式
+#### 模式
 
 + 手动模式 - 配置或者编程的方式，提前安排注入规则
   + XML资源配置元信息
@@ -587,17 +585,17 @@ BeansException
 + 自动模式 - 实现方提供依赖自动关联的方式，按照内建的注入规则
   + Autowiring（自动绑定）
 
-##### 类型
+##### 手动模式
 
-| 依赖注入类型 | 配置元数据举例                                       |
-| ------------ | ---------------------------------------------------- |
-| Setter方法   | <property name="user" ref="userBean">                |
-| 构造器       | <constructor-arg name="user" ref="userBean">         |
-| 字段         | @Autowired User user;                                |
-| 方法         | @Autowired public void user(User user){...}          |
-| 接口回调     | BeanFactoryAware、ApplicationContextAware等Aware接口 |
+| 依赖注入类型 | 配置元数据举例                                               |
+| ------------ | ------------------------------------------------------------ |
+| Setter方法   | <property name="user" ref="userBean">                        |
+| 构造器       | <constructor-arg name="user" ref="userBean">                 |
+| 字段         | @Autowired User user;  @Resource User user;  @InjectUser user; |
+| 方法         | @Autowired public void user(User user){...}                                                                @Beanpublic void userHolder(User user){...} |
+| 接口回调     | BeanFactoryAware、ApplicationContextAware等Aware接口         |
 
-#### 自动绑定（Autowiring）
+##### 自动绑定（Autowiring）
 
 自动处理依赖关系，无需显示指定。
 
@@ -614,6 +612,42 @@ BeansException
 + 不能绑定简单类型，包括原生类型、String类型、Class类型等
 + 不能精确绑定，自动绑定是猜测性的
 + 存在多个匹配的Bean时，会抛出NoUniqueBeanDefinitionException
+
+#### 类型
+
+##### 基础类型注入
+
++ 原生类型(Primitive)：boolean、byte、char、short、integer、float、long、double
++ 标量类型(Scalar)：Number、Character、Boolean、Enum、Locale、Charset、Currency、Properties、UUID
++ 常规类型(General)：Object、String、TimeZone、Claendar、Optional
++ Spring类型：Resource、InputSource、Formatter
+
+##### 集合类型注入
+
++ 数组类型(Array)：原生类型、标量类型、常规类型、Spring类型
++ 集合类型(Collection)
+  + Collection：List、Set
+  + Map：Properties
+
+##### 限定注入
+
++ 使用@Qualifier
+  + 通过Bean名称
+  + 通过分组限定
++ 基于@Qualifier扩展
+  + 自定义注解：如@LoadBalanced
+
+因为自定义注解会被@Qualifier标注，因此自定义注解也会被认为@Qualifier（类似 Java类的继承）。@Qualifier依赖注入时会将自定义标注的Bean也注入。但是自定义注解依赖注入时，不会将@Qualifier标注的Bean注入(子类是父类，但是父类不能为子类)。
+
+#####延迟注入
+
+ObjectProvider和ObjectFactory。
+
+@Lazy代表**现在不进行依赖处理**，在使用时在进行处理。ObjectProvider和ObjectFactory 代表**现在进行依赖处理**，只不过注入的是一个代理对象，使用时，代理对象会去容器中获取真正要注入的对象。
+
+#### 依赖处理过程
+
+
 
 ### 依赖来源
 
