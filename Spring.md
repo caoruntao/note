@@ -639,13 +639,75 @@ BeansException
 
 因为自定义注解会被@Qualifier标注，因此自定义注解也会被认为@Qualifier（类似 Java类的继承）。@Qualifier依赖注入时会将自定义标注的Bean也注入。但是自定义注解依赖注入时，不会将@Qualifier标注的Bean注入(子类是父类，但是父类不能为子类)。
 
-#####延迟注入
+##### 延迟注入
 
 ObjectProvider和ObjectFactory。
 
 @Lazy代表**现在不进行依赖处理**，在使用时在进行处理。ObjectProvider和ObjectFactory 代表**现在进行依赖处理**，只不过注入的是一个代理对象，使用时，代理对象会去容器中获取真正要注入的对象。
 
 #### 依赖处理过程
+
+##### 依赖描述符(DependencyDescriptor)
+
+```java
+public class DependencyDescriptor extends InjectionPoint implements Serializable {
+    // 依赖所在声明类
+	private final Class<?> declaringClass;
+	// 如果依赖是成员方法的某个参数，这里记录该成员方法名
+	@Nullable
+	private String methodName;
+	// 如果依赖是成员方法的某个参数，这里记录该参数类型
+	@Nullable
+	private Class<?>[] parameterTypes;
+	// 如果依赖是成员方法的某个参数，这里记录该参数所在的索引
+	private int parameterIndex;
+	// 如果依赖字段，这里记录字段名
+	@Nullable
+	private String fieldName;
+
+	private final boolean required;
+
+	private final boolean eager;
+
+	private int nestingLevel = 1;
+	// 依赖的包含者类，通常和declaringClass一样
+	@Nullable
+	private Class<?> containingClass;
+	// 泛型依赖相关的类型描述符
+	@Nullable
+	private transient volatile ResolvableType resolvableType;
+	// 依赖相关的类型描述符
+	@Nullable
+	private transient volatile TypeDescriptor typeDescriptor;
+	
+	...
+}
+```
+
+##### 依赖处理入口(AutowireCapableBeanFactory#resolveDependency)
+
+```
+AutowireCapableBeanFactory#resolveDependency
+	createOptionalDependency: 对于Optional类型的依赖，使用doResolveDependency()解决依赖，然后包装。
+	DependencyObjectProvider: 对于ObjectFactory/ObjectProvider类型的依赖，会创建DependencyObjectProvider，延时进行依赖处理。
+	createDependencyProvider: 对于JSR330中@Provider，延迟进行依赖处理。
+	doResolveDependency: 依赖处理
+		DependencyDescriptor#getDependencyType：从字段/方法参数中获取依赖的类型
+		AutowireCandidateResolver#getSuggestedValue： 处理@Value注解，此处不展开
+		resolveEmbeddedValue: 处理@Value注解，此处不展开
+		TypeConverter#convertIfNecessary： 对@Value解析出来的值进行类型转换，以匹配依赖类型，此处不展开
+		resolveMultipleBeans：处理多数据依赖的类型，如StreamDependencyDescriptor、Array、Collection、Map
+		findAutowireCandidates： 获取候选者列表
+			BeanFactoryUtils#beanNamesForTypeIncludingAncestors：根据依赖类型获取候选者名字的列表
+			resolvableDependencies：从缓存中取
+			addCandidateEntry: 
+				DependencyDescriptor#resolveCandidate: 根据beanName去BeanFactory中取。
+		determineAutowireCandidate: 如果候选者不唯一，则决定最终候选者
+			determinePrimaryCandidate： 标记@Primary注解
+			determineHighestPriorityCandidate：标记@Priority注解，且优先级最高
+			matchesBeanName： 匹配指定的依赖名(字段名/方法参数名)
+	
+```
 
 
 
