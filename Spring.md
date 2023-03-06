@@ -709,7 +709,104 @@ AutowireCapableBeanFactory#resolveDependency
 	
 ```
 
+#### 依赖注入过程
 
+##### @Autowired/@Inject/@Value
+
+```
+AutowiredAnnotationBeanPostProcessor#postProcessMergedBeanDefinition: 构建依赖注入元信息缓存
+	findAutowiringMetadata: 查找依赖注入元信息
+		buildAutowiringMetadata: 构建依赖注入元信息，直到父类为空或者为Object
+			ReflectionUtils#doWithLocalFields:	查找依赖注入字段，不支持静态字段
+				AutowiredAnnotationBeanPostProcessor#findAutowiredAnnotation:
+					autowiredAnnotationTypes：查找字段中是否含有集合中的任意注解
+			ReflectionUtils#doWithLocalMethods:	查找依赖注入方法，不支持静态方法
+				AutowiredAnnotationBeanPostProcessor#findAutowiredAnnotation:
+					autowiredAnnotationTypes：查找方法中是否含有集合中的任意注解
+AutowiredAnnotationBeanPostProcessor#postProcessProperties: 处理依赖注入
+	findAutowiringMetadata: 从缓存中获取依赖注入元信息
+		InjectionMetadata#inject: 依赖注入元信息处理
+			InjectionMetadata.InjectedElement#inject:
+				AutowiredFieldElement#resolveFieldValue:
+					resolveFieldValue: 
+						AutowireCapableBeanFactory#resolveDependency: 依赖处理
+					java.lang.reflect.Field#set: 字段注入
+				AutowiredMethodElement#resolveMethodArguments: 
+					resolveMethodArguments: 
+						AutowireCapableBeanFactory#resolveDependency: 依赖处理
+					java.lang.reflect.Method#invoke: 方法注入
+```
+
+依赖注入过程大概分为3步：
+
+	1.	元信息解析
+	1.	依赖处理
+	1.	依赖注入（字段/方法）
+
+InstantiationAwareBeanPostProcessor#postProcessProperties虽然方法名为Properties后置处理，其实发生在属性赋值前(set方法调用前)。
+
+##### @Resource/@EJB/@WebServiceRef
+
+```
+CommonAnnotationBeanPostProcessor#postProcessMergedBeanDefinition:
+	findResourceMetadata:
+		buildResourceMetadata:
+CommonAnnotationBeanPostProcessor#postProcessProperties：
+	findResourceMetadata：
+		InjectionMetadata#inject：
+```
+
+CommonAnnotationBeanPostProcessor和AutowiredAnnotationBeanPostProcessor依赖注入处理过程类似，不在重复展开。
+
+###### @PostConstruct/@PreDestroy
+
+CommonAnnotationBeanPostProcessor会在postProcessBeforeInitialization阶段处理@PostConstruct和@PreDestroy：
+
+```
+CommonAnnotationBeanPostProcessor#postProcessMergedBeanDefinition:
+    super(InitDestroyAnnotationBeanPostProcessor)#postProcessBeforeInitialization:
+        findLifecycleMetadata:
+            buildLifecycleMetadata: 查找@PostConstruct/@PreDestroy的元信息
+                ReflectionUtils#doWithLocalMethods:  
+InitDestroyAnnotationBeanPostProcessor#postProcessBeforeInitialization:
+	findLifecycleMetadata：
+	LifecycleMetadata#invokeInitMethods: 执行初始化方法
+		LifecycleElement#invoke:
+			java.lang.reflect.Method#invoke:
+InitDestroyAnnotationBeanPostProcessor#postProcessBeforeDestruction: 触发于DisposableBeanAdapter#destroy
+	findLifecycleMetadata:
+		LifecycleMetadata#invokeDestroyMethods: 执行销毁前方法
+			LifecycleElement#invoke:
+				java.lang.reflect.Method#invoke:
+```
+
+#### 自定义依赖注入注解
+
+##### @Autowired元标注
+
+##### AutowiredAnnotationBeanPostProcessor#autowiredAnnotationTypes添加自定义注解
+
+#### 面试题
+
+1. 有多少中依赖注入的方式？
+
+   Setter方法注入、构造器注入、字段注入、方法注入和接口回调注入。
+
+2. 偏好构造器注入还是Setter注入？
+
+   没有绝对的好坏，只有相对的合理。
+
+   看情况，如果依赖较少，或依赖注入的顺序有要求，或不要求重复注入，则考虑构造器注入；如果依赖项多，或依赖注入的顺序无要求，或要求重复注入，则考虑Setter注入。
+
+3. Spring依赖注入的来源有哪些？
+
+    自定义的业务Bean
+
+    外部注册的单例
+
+    Spring内建Bean
+
+    Spring内部可解析依赖
 
 ### 依赖来源
 
