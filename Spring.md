@@ -810,11 +810,39 @@ InitDestroyAnnotationBeanPostProcessor#postProcessBeforeDestruction: 触发于Di
 
 ### 依赖来源
 
-+ 自定义 Bean
-+ 容器内建 Bean 对象
++ 用户自定义 Bean(BeanDefinition)
++ 外部注册的单例对象
++ 容器内建 Bean 对象(BeanDefinition)
   + Enviroment
-+ 容器内建依赖
++ 容器内建可处理依赖
   + BeanFactory
+
+#### 依赖查找的依赖来源
+
++ 用户自定义Bean(BeanDefinition)
++ 外部注册的单例对象
++ 容器内建 Bean 对象(BeanDefinition)
+
+#### 依赖注入的依赖来源
+
++ 用户自定义 Bean(BeanDefinition)
++ 外部注册的单例对象
++ 容器内建 Bean 对象(BeanDefinition)
++ 容器内建可处理依赖(ResolvableDependency)
+
+```
+容器内建可处理依赖解析：
+AbstractApplicationContext#prepareBeanFactory: 会注册四个ResolvableDependency
+		beanFactory.registerResolvableDependency(BeanFactory.class, beanFactory);
+		beanFactory.registerResolvableDependency(ResourceLoader.class, this);
+		beanFactory.registerResolvableDependency(ApplicationEventPublisher.class, this);
+		beanFactory.registerResolvableDependency(ApplicationContext.class, this);
+DefaultListableBeanFactory#resolveDependency：
+	doResolveDependency：
+		findAutowireCandidates：查找ResolvableDependency
+```
+
+
 
 ### 配置元信息
 
