@@ -810,28 +810,64 @@ InitDestroyAnnotationBeanPostProcessor#postProcessBeforeDestruction: 触发于Di
 
 ### 依赖来源
 
-+ 用户自定义 Bean(BeanDefinition)
-+ 外部注册的单例对象
-+ 容器内建 Bean 对象(BeanDefinition)
-  + Enviroment
-+ 容器内建可处理依赖
++ 用户自定义 BeanDefinition 创建出来的Bean
++ 外部注册的 单例对象
++ Spring容器内建 BeanDefinition 创建出来的Bean
+  + ConfigurationClassPostProcessor
+  + AutowiredAnnotationBeanPostProcessor
+  + CommonAnnotationPostProcessor
+  + EventListenerMethodProcessor
+
++ Spring容器内建 单例对象
+  + Environment
+  + MessageSource
+  + LifecycleProcessor
+  + ApplicationEventMulticaster
++ Spring容器内建可处理依赖(ResolvableDependency)
   + BeanFactory
+  + ResourceLoader
+  + ApplicationEventPublisher
+  + ApplicationContext
 
 #### 依赖查找的依赖来源
 
-+ 用户自定义Bean(BeanDefinition)
++ 用户自定义 BeanDefinition 创建出来的Bean
 + 外部注册的单例对象
-+ 容器内建 Bean 对象(BeanDefinition)
++ Spring容器内建 BeanDefinition 创建出来的Bean
++ Spring容器内建 单例对象
 
 #### 依赖注入的依赖来源
 
-+ 用户自定义 Bean(BeanDefinition)
++ 用户自定义 BeanDefinition 创建出来的Bean
 + 外部注册的单例对象
-+ 容器内建 Bean 对象(BeanDefinition)
-+ 容器内建可处理依赖(ResolvableDependency)
++ Spring容器内建 BeanDefinition 创建出来的Bean
++ Spring容器内建 单例对象
++ **Spring容器内建可处理依赖(ResolvableDependency)**
 
-```
-容器内建可处理依赖解析：
+#### Spring BeanDefinition作为依赖来源
+
+元数据：BeanDefinition
+
+注册：DefaultListableBeanFactory#registerBeanDefinition
+
+顺序：按BeanDefinition注册顺序(DefaultListableBeanFactory#beanDefinitionNames是有序列表)
+
+其他：生命周期由Spring容器管理，而且可以延迟初始化Bean
+
+#### 单列对象作为依赖来源
+
+注册：DefaultListableBeanFactory#registerSingleton
+
+顺序：按单列对象注册顺序（DefaultSingletonBeanRegistry#registeredSingletons是插入有序集合）
+
+限制：生命周期不由Spring容器管理，而且无法延迟初始化有序的。
+
+#### ResolvableDependency作为依赖来源
+
+注册：DefaultListableBeanFactory#registerResolvableDependency
+
+```java
+Spring容器内建可处理依赖解析：
 AbstractApplicationContext#prepareBeanFactory: 会注册四个ResolvableDependency
 		beanFactory.registerResolvableDependency(BeanFactory.class, beanFactory);
 		beanFactory.registerResolvableDependency(ResourceLoader.class, this);
@@ -842,7 +878,7 @@ DefaultListableBeanFactory#resolveDependency：
 		findAutowireCandidates：查找ResolvableDependency
 ```
 
-
+限制：生命周期不由Spring容器管理，无法延迟初始化，且不可用于依赖查找。
 
 ### 配置元信息
 
