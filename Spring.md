@@ -880,6 +880,57 @@ DefaultListableBeanFactory#resolveDependency：
 
 限制：生命周期不由Spring容器管理，无法延迟初始化，且不可用于依赖查找。
 
+#### 外部化配置作为依赖来源
+
+外部化配置使用@Value进行依赖注入的处理，@Value注解由AutowiredAnnotationBeanPostProcessor处理。
+
+```java
+元信息解析
+AutowiredAnnotationBeanPostProcessor#postProcessMergedBeanDefinition： 构建依赖注入元信息缓存
+	findAutowiringMetadata：
+		buildAutowiringMetadata：
+			ReflectionUtils#doWithLocalFields：筛选标注autowiredAnnotationTypes中注解的字段
+				findAutowiredAnnotation： 
+			ReflectionUtils#doWithLocalMethods：标注autowiredAnnotationTypes中注解的方法参数
+				findAutowiredAnnotation： 
+依赖处理
+AbstractApplicationContext#finishBeanFactoryInitialization：
+	beanFactory.addEmbeddedValueResolver(strVal -> getEnvironment().resolvePlaceholders(strVal))： 注册一个默认的StringValueResolver
+
+DefaultListableBeanFactory#resolveDependency：
+	doResolveDependency：
+		AutowireCandidateResolver#getSuggestedValue： 获取@Value中的value值
+			AbstractBeanFactory#resolveEmbeddedValue： 解析@Value的值
+				PropertySourcesPropertyResolver#resolvePlaceholders： 
+					AbstractPropertyResolver#doResolvePlaceholders：
+						PropertyPlaceholderHelper#replacePlaceholders：
+							PropertyPlaceholderHelper#parseStringValue：
+								PropertyPlaceholderHelper.PlaceholderResolver#resolvePlaceholder： helper.replacePlaceholders(text, this::getPropertyAsRawString)
+								org.springframework.core.env.PropertySourcesPropertyResolver#getPropertyAsRawString：
+								getProperty：
+									PropertySource#getProperty: 从properties文件取
+```
+
+@Value处理逻辑简单化：
+
+​	StringValueReslover -> PropertyReslover(PropertySourcePropertyReslover) -> PropertyPlaceholderHelper -> PlaceholderReslover
+
+#### 面试题
+
+1. 依赖注入和依赖查找的来源是否相同？
+
+​		不同。依赖查找可以来源于Spring BeanDefinition和单例对象，依赖注入的来源还包括ReslovableDepency以及@Value所标注的外部化配置。
+
+2. 单例对象在IoC容器启动后还能注册吗？
+
+​		可以的，没有任何影响。相反，BeanDefinition在启动后会冻结配置（DefaultListableBeanFactory#configurationFrozen），冻结配置不代表无法注册BeanDefinition，只是启动后注册的BeanDefinition并不能作为启动前Spring Bean的依赖来源。
+
+2. 依赖注入的来源？
+   + Spring BeanDefinition
+   + 单例对象
+   + ReslovableDepency
+   + 外部化配置
+
 ### 配置元信息
 
 + Bean定义配置
