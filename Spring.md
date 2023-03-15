@@ -1109,8 +1109,146 @@ public interface AliasRegistry {
 
 Bean作用域由BeanFactory记录。
 
-+	单例：org.springframework.beans.factory.config.ConfigurableBeanFactory#SCOPE_SINGLETON，全局(BeanFactory)共享一个Bean实例，生命周期（初始化和销毁）由BeanFactory托管。
-+	原型： org.springframework.beans.factory.config.ConfigurableBeanFactory#SCOPE_PROTOTYPE， 每次获取一个新的实例，由BeanFactory创建，因此负责初始化，但是BeanFactory不持有该Bean，因此不负责销毁。可在所属类销毁时手动调用prototype Bean销毁。
+#### 单例(SINGLETON)
+
+​	ConfigurableBeanFactory#SCOPE_SINGLETON，全局(BeanFactory)共享一个Bean实例，生命周期（初始化和销毁）由BeanFactory托管。
+
+#### 原型(PROTOTYPE)
+
+​	 ConfigurableBeanFactory#SCOPE_PROTOTYPE， 每次获取一个新的实例，由BeanFactory创建，因此负责初始化周期，但是BeanFactory不持有该Bean，因此不负责销毁周期。可在所属类销毁时手动调用prototype Bean销毁。
+
+#### 请求级别(RequestScope)
+
+​	每次请求(Request)都会获取一个新的实例。
+
+```JAVA
+public abstract class AbstractRequestAttributesScope implements Scope {
+
+	@Override
+	public Object get(String name, ObjectFactory<?> objectFactory) {
+		RequestAttributes attributes = RequestContextHolder.currentRequestAttributes();
+		Object scopedObject = attributes.getAttribute(name, getScope());
+		if (scopedObject == null) {
+			scopedObject = objectFactory.getObject();
+			attributes.setAttribute(name, scopedObject, getScope());
+			// Retrieve object again, registering it for implicit session attribute updates.
+			// As a bonus, we also allow for potential decoration at the getAttribute level.
+			Object retrievedObject = attributes.getAttribute(name, getScope());
+			if (retrievedObject != null) {
+				// Only proceed with retrieved object if still present (the expected case).
+				// If it disappeared concurrently, we return our locally created instance.
+				scopedObject = retrievedObject;
+			}
+		}
+		return scopedObject;
+	}
+	
+	...
+}
+```
+
+```
+public class RequestScope extends AbstractRequestAttributesScope {
+
+	@Override
+	protected int getScope() {
+		return RequestAttributes.SCOPE_REQUEST;
+	}
+
+	/**
+	 * There is no conversation id concept for a request, so this method
+	 * returns {@code null}.
+	 */
+	@Override
+	@Nullable
+	public String getConversationId() {
+		return null;
+	}
+
+}
+```
+
+RequestScope继承于AbstractRequestAttributesScope，且Scope#getConversationId为NULL，则每次会获取新的RequestAttributes，RequestAttributes没有对应实例，因此每次获取都会创建一个新实例，然后放进去(RequestScope每次都会获取新的RequestAttributes，因此放进去也不会被使用)。
+
+#### 会话级别(SessionScope)
+
+​	每个新的会话会创建一个新实例，相同的会话共享一个实例。
+
+```java
+public class SessionScope extends AbstractRequestAttributesScope {
+
+	@Override
+	public String getConversationId() {
+		return RequestContextHolder.currentRequestAttributes().getSessionId();
+	}
+
+	@Override
+	public Object get(String name, ObjectFactory<?> objectFactory) {
+		Object mutex = RequestContextHolder.currentRequestAttributes().getSessionMutex();
+		synchronized (mutex) {
+			return super.get(name, objectFactory);
+		}
+	}
+
+	...
+
+}
+```
+
+SessionScope继承于AbstractRequestAttributesScope，且Scope#getConversationId返回SessionId，这样同一个会话会返回同一个RequestAttributes，此时，实例没有时会创建然后放入，后续从RequestAttributes取之前放入的实例即可实现会话级别的实例共享。
+
+SessionScope重写get()方法，添加互斥锁，是因为可能一个会话同时发起多个请求，引发线程安全问题，因此添加互斥锁保证线程安全。RequestScope是请求级别，每个请求绑定一个线程，因此不会有线程安全问题。
+
+#### 应用级别(ServletContextScope)
+
+​	ServletContextScope没有继承AbstractRequestAttributesScope，是因为应用级别实现实例共享简单，只需要将实例放入ServletContext中即可。
+
+```java
+public class ServletContextScope implements Scope, DisposableBean {
+
+	private final ServletContext servletContext;
+
+	@Override
+	public Object get(String name, ObjectFactory<?> objectFactory) {
+		Object scopedObject = this.servletContext.getAttribute(name);
+		if (scopedObject == null) {
+			scopedObject = objectFactory.getObject();
+			this.servletContext.setAttribute(name, scopedObject);
+		}
+		return scopedObject;
+	}
+
+	...
+}
+```
+
+#### 自定义生成周期
+
+​	先实现Scope，然后将Scope注册(ConfigurableBeanFactory#registerScope)到容器中。
+
+​	自定义生命周期无非是将实例保存到该生命周期共享的数据中，如RequestAttributes，有则获取，无则添加。如自定义线程级别的生命周期，ThreadLocal就是线程级别的，每个线程都有自己的ThreadLocal，此时就可以从ThreadLocal获取实例，有则获取成功，无责添加，以供后续获取。
+
+```java
+public class ThreadScope implements Scope {
+    private ThreadLocal<Map<String, Object>> instanceThreadLocal = ThreadLocal.withInitial(HashMap::new);
+
+    @Override
+    public Object get(String name, ObjectFactory<?> objectFactory) {
+        Map<String, Object> instanceMap = instanceThreadLocal.get();
+        return instanceMap.putIfAbsent(name, objectFactory.getObject());
+    }
+
+    @Override
+    public Object remove(String name) {
+        Map<String, Object> instanceMap = instanceThreadLocal.get();
+        return instanceMap.remove(name);
+    }
+
+	...
+}
+```
+
+​	依赖注入时注入的是代理对象，这样才能根据不同的生命周期获取到不同的实例，这里如何实现？
 
 ### Bean生命周期
 
