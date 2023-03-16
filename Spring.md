@@ -1248,7 +1248,112 @@ public class ThreadScope implements Scope {
 }
 ```
 
-​	依赖注入时注入的是代理对象，这样才能根据不同的生命周期获取到不同的实例，这里如何实现？
+#### RefreshScope
+
+​	RefreshScope继承GenericScope，功能大部分由GenericScope实现。
+
+```java
+public class RefreshScope extends GenericScope
+		implements ApplicationContextAware, ApplicationListener<ContextRefreshedEvent>, Ordered {
+    public void refreshAll() {
+        super.destroy();
+        this.context.publishEvent(new RefreshScopeRefreshedEvent());
+    }
+
+    ...
+}
+```
+
+```java
+public class GenericScope
+		implements Scope, BeanFactoryPostProcessor, BeanDefinitionRegistryPostProcessor, DisposableBean {
+    private BeanLifecycleWrapperCache cache = new BeanLifecycleWrapperCache(new StandardScopeCache());
+    	
+    // 从缓存中获取实例，有则获取，无则创建
+    @Override
+	public Object get(String name, ObjectFactory<?> objectFactory) {
+        // Put a value in the cache if the key is not already used. If one is already present with the name provided, it is not replaced, but is returned to the caller.
+		BeanLifecycleWrapper value = this.cache.put(name, new BeanLifecycleWrapper(name, objectFactory));
+		this.locks.putIfAbsent(name, new ReentrantReadWriteLock());
+		try {
+			return value.getBean();
+		}
+		catch (RuntimeException e) {
+			this.errors.put(name, e);
+			throw e;
+		}
+	}
+ 
+    // 清空缓存，这样下次只能新建实例
+    @Override
+	public void destroy() {
+		List<Throwable> errors = new ArrayList<Throwable>();
+		Collection<BeanLifecycleWrapper> wrappers = this.cache.clear();
+		for (BeanLifecycleWrapper wrapper : wrappers) {
+			try {
+				Lock lock = this.locks.get(wrapper.getName()).writeLock();
+				lock.lock();
+				try {
+					wrapper.destroy();
+				}
+				finally {
+					lock.unlock();
+				}
+			}
+			catch (RuntimeException e) {
+				errors.add(e);
+			}
+		}
+		if (!errors.isEmpty()) {
+			throw wrapIfNecessary(errors.get(0));
+		}
+		this.errors.clear();
+	}
+    
+    // 注册Scope
+    @Override
+	public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
+		this.beanFactory = beanFactory;
+		beanFactory.registerScope(this.name, this);
+		setSerializationId(beanFactory);
+	}
+}
+```
+
+​	RefreshScope#refreshAll会清空缓存，这样就能完成刷新，下次就会获取新的实例。RefreshScope#refreshAll会被ContextRefresher#refresh调用，ContextRefresher#refresh会被
+
++ RefreshEndpoint端点调用(/actuator/refresh)
++ 监听RefreshEvent事件的RefreshEventListener调用
+
+#### ScopedProxyMode
+
+​	@Scope标注的Bean，可能在不同的周期内获取不同的实例，如RequestScope，每个请求获取一个实例，但是依赖注入时只依赖查找一次Bean实例，然后注入，后续就使用了注入的具体实例，这样就无法实现在不同的周期内获取不同的实例。
+
+​	Spring会针对上述情况，在依赖注入时注入一个代理对象，然后通过代理对象会获取实例，这样代理对象没获取一次都是一个新的实例。
+
+​	当Scope#proxyMode为ScopedProxyMode#INTERFACES或ScopedProxyMode#TARGET_CLASS时，Spring会注入一个代理对象（AnnotationConfigUtils#applyScopedProxyMode）。
+
+```JAVA
+AnnotationConfigUtils#applyScopedProxyMode:
+	ScopedProxyCreator#createScopedProxy:
+		ScopedProxyUtils#createScopedProxy: 会创建一个ScopedProxyFactoryBean的BeanDefinition，然后注册到容器中
+            DefaultScopedObject#getTargetObject：
+            	BeanFactory#getBean
+```
+
+#### 面试题
+
+1. Spring内建的Bean有哪些作用域？
+
+   singleton、pototype、request、session、application
+
+2. singleton Bean 是否在一个应用中是唯一的？
+
+   在应用中不是唯一的。singleton的作用域是BeanFactory，在BeanFactory中是唯一的，一个应用可能有多个BeanFactory。好比静态变量在ClassLoader中是唯一的，而非JVM。
+
+3. application作用域是否有代替方案？
+
+   application作用域是针对于ServletContext的，一个ServletContext可以关联多个ApplicationContext(Spring应用上下文)。Web类型的ApplicationContext会关联到ServletContext(WebApplicationContext#getServletContext)。
 
 ### Bean生命周期
 
