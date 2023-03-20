@@ -1357,6 +1357,43 @@ AnnotationConfigUtils#applyScopedProxyMode:
 
 ### Bean生命周期
 
+#### Bean元信息配置
+
+##### 资源配置
+
+Properties资源
+
+XML资源
+
+Groovy资源
+
+##### 注解配置
+
+@Compoment、@Repository、@Service、@Controller、@Configuration
+
+@Bean
+
+##### API配置
+
+BeanDefinitionBuilder
+
+创建BeanDefinition对象
+
+#### Bean元信息解析
+
+##### 面向资源BeanDefinition解析
+
++ BeanDefinitionReader
++ XML 解析器 - BeanDefinitionParse
+
+##### 面向注解BeanDefinition解析
+
++ AnnotatedBeanDefinitionReader
+
+#### BeanDefinition注册
+
++ BeanDefinitionRegistry
+
 #### Bean实例化(Instantiation)
 
  + 常规方式
