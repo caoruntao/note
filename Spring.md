@@ -1392,7 +1392,19 @@ BeanDefinitionBuilder
 
 #### BeanDefinition注册
 
-+ BeanDefinitionRegistry
+​	通过DefaultListableBeanFactory#registerBeanDefinition注册，注册时DefaultListableBeanFactory#beanDefinitionMap存储BeanDefinition，DefaultListableBeanFactory#beanDefinitionNames保存BeanDefinition注册顺序。
+
+#### BeanDefinition合并
+
+AbstractBeanFactory#getMergedBeanDefinition: 获取合并后的BeanDefinition
+	1.	使用AbstractBeanFactory#mergedBeanDefinitions加锁，保证线程安全
+	1.	从AbstractBeanFactory#mergedBeanDefinitions获取，有则返回
+	1.	如果当前BeanDefinition#getParentName为空(没有父引用)，则判断是否是**RootBeanDefinition**，是的话克隆一个返回，不是的话则为**GenericBeanDefinition**，将其包装成RootBeanDefinition返回
+	1.	获取**父引用合并后**的RootBeanDefinition，然后深度克隆一个，并使用当前BeanDefinition中的属性去覆盖克隆出来的那个RootBeanDefinition，然后返回
+
+
+
+
 
 #### Bean实例化(Instantiation)
 
