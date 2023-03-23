@@ -1402,7 +1402,24 @@ AbstractBeanFactory#getMergedBeanDefinition: 获取合并后的BeanDefinition
 	1.	如果当前BeanDefinition#getParentName为空(没有父引用)，则判断是否是**RootBeanDefinition**，是的话克隆一个返回，不是的话则为**GenericBeanDefinition**，将其包装成RootBeanDefinition返回
 	1.	获取**父引用合并后**的RootBeanDefinition，然后深度克隆一个，并使用当前BeanDefinition中的属性去覆盖克隆出来的那个RootBeanDefinition，然后返回
 
+#### Bean Class加载
 
+AbstractBeanFactory#resolveBeanClass: 解析Bean Class
+
+1. AbstractBeanDefinition#hasBeanClass会判断是否Bean Class是否已经加载。AbstractBeanDefinition#beanClass是一个Object类型的
+   + 当AbstractBeanDefinition#beanClass实际类型为Class时，代表Bean Class已经加载；
+   + 当AbstractBeanDefinition#beanClass实际类型为String时，代表Bean Class的全限定名称，此时需要使用ClassLoader进行类加载。
+2. 获取当前BeanFactory的ClassLoader，根据AbstractBeanDefinition#beanClass代表的类全限定名称，调用Class#forName进行类加载
+
+```java
+AbstractBeanFactory#resolveBeanClass:
+	AbstractBeanDefinition#hasBeanClass: 判断是否Bean Class是否已经加载，已加载则返回
+	AbstractBeanFactory#doResolveBeanClass: 加载Bean Class
+		AbstractBeanFactory#getBeanClassLoader: 获取当前BeanFactory的ClassLoader
+			AbstractBeanDefinition#resolveBeanClass: 
+				ClassUtils#forName:
+				加载好Bean Class后，AbstractBeanDefinition#beanClass会从类的全限定名称变为Class
+```
 
 
 
@@ -1415,12 +1432,73 @@ AbstractBeanFactory#getMergedBeanDefinition: 获取合并后的BeanDefinition
    +	通过Bean工厂方法，指定BeanDefinition中的factoryBeanName属性和factoryMethodName属性。org.springframework.beans.factory.config.BeanDefinition#setFactoryBeanName;org.springframework.beans.factory.config.BeanDefinition#setFactoryMethodName
 
    +	通过FactoryBean，实现org.springframework.beans.factory.FactoryBean，然后注册到IoC容器中。
-
  + 特殊方式
 
    +	通过ServiceLoaderFactoryBean，注册org.springframework.beans.factory.serviceloader.AbstractServiceLoaderBasedFactoryBean的派生类，指定serviceType。Spring会通过java.util.ServiceLoader#load(java.lang.Class<S>)去加载serviceType对应的实例。
    +	通过org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory#createBean(java.lang.Class<T>)
    +	通过org.springframework.beans.factory.support.BeanDefinitionRegistry#registerBeanDefinition
+
+##### 实例化前
+
+```java
+public interface InstantiationAwareBeanPostProcessor extends BeanPostProcessor {
+
+	@Nullable
+	default Object postProcessBeforeInstantiation(Class<?> beanClass, String beanName) throws BeansException {
+		return null;
+	}
+	...
+}
+```
+
+当InstantiationAwareBeanPostProcessor#postProcessBeforeInstantiation返回一个非空的Object时，会跳过实例化阶段，使用返回的非空Object作为Bean实例。
+
+```JAVA
+InstantiationAwareBeanPostProcessor#postProcessBeforeInstantiation:
+	AbstractAutowireCapableBeanFactory#applyBeanPostProcessorsBeforeInstantiation:
+		AbstractAutowireCapableBeanFactory#resolveBeforeInstantiation:
+			AbstractAutowireCapableBeanFactory#createBean:
+				// 返回一个非空的Object时，使用返回的非空Object作为Bean实例
+				Object bean = resolveBeforeInstantiation(beanName, mbdToUse);
+                if (bean != null) {
+                    return bean;
+                }
+```
+
+##### 实例化
+
+实例化方式：
+
++ 传统实例化方式
+  + 实例化策略：InstantiationStrategy
++ 构造器依赖注入：构造器参数(Spring Bean类型)会根据类型注入，而非参数名
+
+```JAVA
+AbstractAutowireCapableBeanFactory#doCreateBean:
+	#createBeanInstance
+		AbstractBeanFactory#resolveBeanClass: Bean Class加载
+		
+		AbstractBeanDefinition#getInstanceSupplier: 提供Supplier
+		AbstractAutowireCapableBeanFactory#obtainFromSupplier: 从Supplier中获取实例
+		
+		AbstractBeanDefinition#getFactoryMethodName: 指定工厂方法
+		#instantiateUsingFactoryMethod: 
+			ConstructorResolver#instantiateUsingFactoryMethod:
+				AbstractBeanDefinition#getFactoryBeanName: 如果指定工厂Bean，则从BeanFactory中获取工厂Bean实例；否则为本Class中的静态方法
+				#resolvePreparedArguments: 解析方法参数
+				// TODO 中间还有很多逻辑
+				#instantiate: 
+					InstantiationStrategy#instantiate: 使用实例化策略创建实例。调用本Class中的静态FactoryMethod创建，或者调用工厂Bean实例的FactoryMethod创建。
+        AbstractAutowireCapableBeanFactory#autowireConstructor: 指定构造器。通过SmartInstantiationAwareBeanPostProcessor#determineCandidateConstructors/AUTOWIRE_CONSTRUCTOR(根据构造器自动注入)/BeanDefinition指定构造器参数/AbstractBeanFactory#getBean时指定参数
+           ConstructorResolver#autowireConstructor:
+			#resolvePreparedArguments: 解析方法参数
+            	#instantiate: 
+					InstantiationStrategy#instantiate: 使用指定构造器和参数实例化。
+        AbstractAutowireCapableBeanFactory#instantiateBean: 传统实例化
+           InstantiationStrategy#instantiate: 获取无参构造器实例化
+```
+
+
 
 #### Bean初始化(Initialzation)
 
