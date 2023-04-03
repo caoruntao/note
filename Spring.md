@@ -1451,7 +1451,7 @@ public interface InstantiationAwareBeanPostProcessor extends BeanPostProcessor {
 }
 ```
 
-当InstantiationAwareBeanPostProcessor#postProcessBeforeInstantiation返回一个非空的Object时，会跳过实例化阶段，使用返回的非空Object作为Bean实例。
+当InstantiationAwareBeanPostProcessor#postProcessBeforeInstantiation返回一个非空的Object时，会跳过实例化阶段，使用返回的非空Object作为Bean实例。返回Null时，则调用AbstractAutowireCapableBeanFactory#doCreateBean创建Bean。
 
 ```JAVA
 InstantiationAwareBeanPostProcessor#postProcessBeforeInstantiation:
@@ -1498,7 +1498,226 @@ AbstractAutowireCapableBeanFactory#doCreateBean:
            InstantiationStrategy#instantiate: 获取无参构造器实例化
 ```
 
+##### BeanDefinition合并后置处理
 
+```java
+public interface MergedBeanDefinitionPostProcessor extends BeanPostProcessor {
+
+	/**
+	 * Post-process the given merged bean definition for the specified bean.
+	 * @param beanDefinition the merged bean definition for the bean
+	 * @param beanType the actual type of the managed bean instance
+	 * @param beanName the name of the bean
+	 * @see AbstractAutowireCapableBeanFactory#applyMergedBeanDefinitionPostProcessors
+	 */
+	void postProcessMergedBeanDefinition(RootBeanDefinition beanDefinition, Class<?> beanType, String beanName);
+	... 
+
+}
+```
+
+```java
+	protected Object doCreateBean(String beanName, RootBeanDefinition mbd, @Nullable Object[] args)
+			throws BeanCreationException {
+
+		// Instantiate the bean.
+		BeanWrapper instanceWrapper = null;
+		... 
+		if (instanceWrapper == null) {
+			instanceWrapper = createBeanInstance(beanName, mbd, args);
+		}
+		Object bean = instanceWrapper.getWrappedInstance();
+		...
+            
+		// Allow post-processors to modify the merged bean definition.
+		synchronized (mbd.postProcessingLock) {
+			if (!mbd.postProcessed) {
+				try {
+					applyMergedBeanDefinitionPostProcessors(mbd, beanType, beanName);
+				}
+				catch (Throwable ex) {
+					throw new BeanCreationException(mbd.getResourceDescription(), beanName,
+							"Post-processing of merged bean definition failed", ex);
+				}
+				mbd.postProcessed = true;
+			}
+		}
+```
+
+##### 实例化后
+
+```java
+public interface InstantiationAwareBeanPostProcessor extends BeanPostProcessor {
+
+	default boolean postProcessAfterInstantiation(Object bean, String beanName) throws BeansException {
+		return true;
+	}
+	
+	...
+```
+
+当InstantiationAwareBeanPostProcessor#postProcessAfterInstantiation返回false时，则跳过属性赋值阶段(AbstractAutowireCapableBeanFactory#applyPropertyValues)，直接进入初始化阶段。返回true时，会执行InstantiationAwareBeanPostProcessor#postProcessProperties对PropertyValues进行使用(赋值)前最后的修改。
+
+```Java
+protected void populateBean(String beanName, RootBeanDefinition mbd, @Nullable BeanWrapper bw) {
+
+		// Give any InstantiationAwareBeanPostProcessors the opportunity to modify the
+		// state of the bean before properties are set. This can be used, for example,
+		// to support styles of field injection.
+		if (!mbd.isSynthetic() && hasInstantiationAwareBeanPostProcessors()) {
+			for (InstantiationAwareBeanPostProcessor bp : getBeanPostProcessorCache().instantiationAware) {
+				if (!bp.postProcessAfterInstantiation(bw.getWrappedInstance(), beanName)) {
+					return;
+				}
+			}
+		}
+		...    
+		PropertyDescriptor[] filteredPds = null;
+		if (hasInstAwareBpps) {
+			if (pvs == null) {
+				pvs = mbd.getPropertyValues();
+			}
+			for (InstantiationAwareBeanPostProcessor bp : getBeanPostProcessorCache().instantiationAware) {
+				PropertyValues pvsToUse = bp.postProcessProperties(pvs, bw.getWrappedInstance(), beanName);
+				if (pvsToUse == null) {
+					if (filteredPds == null) {
+						filteredPds = filterPropertyDescriptorsForDependencyCheck(bw, mbd.allowCaching);
+					}
+					pvsToUse = bp.postProcessPropertyValues(pvs, filteredPds, bw.getWrappedInstance(), beanName);
+					if (pvsToUse == null) {
+						return;
+					}
+				}
+				pvs = pvsToUse;
+			}
+
+		...
+		if (pvs != null) {
+			applyPropertyValues(beanName, mbd, bw, pvs);
+		}
+	}
+```
+
+AbstractAutowireCapableBeanFactory#populateBean会执行实例化后阶段。
+
+#### Bean 属性赋值
+
+```JAVA
+AbstractAutowireCapableBeanFactory#createBean
+	#doCreateBean:
+		#populateBean:
+			InstantiationAwareBeanPostProcessor#postProcessAfterInstantiation: 决定是否执行属性赋值
+			InstantiationAwareBeanPostProcessor#postProcessPropertyValues: 属性赋值前对PropertyValues做最后的修改
+		AbstractAutowireCapableBeanFactory#applyPropertyValues: 属性赋值
+	
+```
+
+```java
+public interface InstantiationAwareBeanPostProcessor extends BeanPostProcessor {
+	...
+	@Nullable
+	default PropertyValues postProcessProperties(PropertyValues pvs, Object bean, String beanName)
+			throws BeansException {
+
+		return null;
+	}
+	...
+}
+```
+
+InstantiationAwareBeanPostProcessor#postProcessProperties在属性赋值前对属性做最后的修改，返回null代表不做任何修改。
+
+​	AutowiredAnnotationBeanPostProcessor#postProcessProperties，Spring容器的依赖注入就是在该阶段进行注入的。
+
+#### Bean Aware 接口回调
+
+##### BeanFactory相关Aware接口
+
+```java
+AbstractAutowireCapableBeanFactory#initializeBean:
+	#invokeAwareMethods: 执行Aware接口回调
+```
+
+```java
+	private void invokeAwareMethods(String beanName, Object bean) {
+		if (bean instanceof Aware) {
+			if (bean instanceof BeanNameAware) {
+				((BeanNameAware) bean).setBeanName(beanName);
+			}
+			if (bean instanceof BeanClassLoaderAware) {
+				ClassLoader bcl = getBeanClassLoader();
+				if (bcl != null) {
+					((BeanClassLoaderAware) bean).setBeanClassLoader(bcl);
+				}
+			}
+			if (bean instanceof BeanFactoryAware) {
+				((BeanFactoryAware) bean).setBeanFactory(AbstractAutowireCapableBeanFactory.this);
+			}
+		}
+	}
+```
+
+在Bean初始化前阶段之前会进行Aware接口的回调，Aware接口包括BeanNameAware、BeanClassLoaderAware和BeanFactoryAware，会依次执行回调注入。
+
+##### ApplicationContext相关Aware接口
+
+​	ApplicationContext相关Bean的回调会在ApplicationContextAwareProcessor#postProcessBeforeInitialization(初始化前阶段)中执行。
+
+```java
+class ApplicationContextAwareProcessor implements BeanPostProcessor {
+
+	@Override
+	@Nullable
+	public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+		if (!(bean instanceof EnvironmentAware || bean instanceof EmbeddedValueResolverAware ||
+				bean instanceof ResourceLoaderAware || bean instanceof ApplicationEventPublisherAware ||
+				bean instanceof MessageSourceAware || bean instanceof ApplicationContextAware ||
+				bean instanceof ApplicationStartupAware)) {
+			return bean;
+		}
+
+		invokeAwareInterfaces(bean);
+
+		return bean;
+	}
+
+	private void invokeAwareInterfaces(Object bean) {
+		if (bean instanceof EnvironmentAware) {
+			((EnvironmentAware) bean).setEnvironment(this.applicationContext.getEnvironment());
+		}
+		if (bean instanceof EmbeddedValueResolverAware) {
+			((EmbeddedValueResolverAware) bean).setEmbeddedValueResolver(this.embeddedValueResolver);
+		}
+		if (bean instanceof ResourceLoaderAware) {
+			((ResourceLoaderAware) bean).setResourceLoader(this.applicationContext);
+		}
+		if (bean instanceof ApplicationEventPublisherAware) {
+			((ApplicationEventPublisherAware) bean).setApplicationEventPublisher(this.applicationContext);
+		}
+		if (bean instanceof MessageSourceAware) {
+			((MessageSourceAware) bean).setMessageSource(this.applicationContext);
+		}
+		if (bean instanceof ApplicationStartupAware) {
+			((ApplicationStartupAware) bean).setApplicationStartup(this.applicationContext.getApplicationStartup());
+		}
+		if (bean instanceof ApplicationContextAware) {
+			((ApplicationContextAware) bean).setApplicationContext(this.applicationContext);
+		}
+	}
+
+}
+
+```
+
+在初始化前阶段会进行ApplicationContext Aware相关的回调，包括EnvironmentAware、EmbeddedValueResolverAware、ResourceLoaderAware、ApplicationEventPublisherAware、MessageSourceAware、ApplicationStartupAware、ApplicationContextAware，按顺序依次注入。
+
+```java
+AbstractApplicationContext#refresh
+	#prepareBeanFactory:
+		beanFactory.addBeanPostProcessor(new ApplicationContextAwareProcessor(this)): 注册
+```
+
+##### 
 
 #### Bean初始化(Initialzation)
 
@@ -1510,6 +1729,132 @@ AbstractAutowireCapableBeanFactory#doCreateBean:
 
 @Lazy标记的Bean可以延迟加载。
 
+##### 初始化前
+
+```java
+public interface BeanPostProcessor {
+
+	/**
+	 * Apply this {@code BeanPostProcessor} to the given new bean instance <i>before</i> any bean
+	 * initialization callbacks (like InitializingBean's {@code afterPropertiesSet}
+	 * or a custom init-method). The bean will already be populated with property values.
+	 * The returned bean instance may be a wrapper around the original.
+	 * <p>The default implementation returns the given {@code bean} as-is.
+	 * @param bean the new bean instance
+	 * @param beanName the name of the bean
+	 * @return the bean instance to use, either the original or a wrapped one;
+	 * if {@code null}, no subsequent BeanPostProcessors will be invoked
+	 * @throws org.springframework.beans.BeansException in case of errors
+	 * @see org.springframework.beans.factory.InitializingBean#afterPropertiesSet
+	 */
+	@Nullable
+	default Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+		return bean;
+	}
+}
+```
+
+​	会在调用初始化方法之前进行一些操作，如CommonAnnotationBeanPostProcessor#postProcessBeforeInitialization就会在该阶段执行Bean部分初始化方法(@PostConstruct标注的)。
+
+```java
+AbstractAutowireCapableBeanFactory#initializeBean
+	#applyBeanPostProcessorsBeforeInitialization
+		BeanPostProcessor#postProcessBeforeInitialization: 执行初始化前阶段的处理
+```
+
+##### 初始化
+
+```
+AbstractAutowireCapableBeanFactory#createBean
+	#doCreateBean:
+		#initializeBean:
+			#invokeInitMethods:
+				InitializingBean#afterPropertiesSet: 执行实现InitializingBean接口的afterPropertiesSet方法
+				#invokeCustomInitMethod: 执行在BeanDefinition中指定initMethodName对应的方法
+```
+
+​	因为@PostConstruct标注的方法在Bean初始化前阶段执行，因此优先级最高。
+
+​	初始化方法优先级： 
+
+	1.	 @PostConstruct
+	1.	 InitializingBean#afterPropertiesSet
+	1.	 AbstractBeanDefinition#initMethodName对应的方法
+
+##### 初始化后
+
+```java
+public interface BeanPostProcessor {
+	...
+
+	/**
+	 * Apply this {@code BeanPostProcessor} to the given new bean instance <i>after</i> any bean
+	 * initialization callbacks (like InitializingBean's {@code afterPropertiesSet}
+	 * or a custom init-method). The bean will already be populated with property values.
+	 * The returned bean instance may be a wrapper around the original.
+	 * <p>In case of a FactoryBean, this callback will be invoked for both the FactoryBean
+	 * instance and the objects created by the FactoryBean (as of Spring 2.0). The
+	 * post-processor can decide whether to apply to either the FactoryBean or created
+	 * objects or both through corresponding {@code bean instanceof FactoryBean} checks.
+	 * <p>This callback will also be invoked after a short-circuiting triggered by a
+	 * {@link InstantiationAwareBeanPostProcessor#postProcessBeforeInstantiation} method,
+	 * in contrast to all other {@code BeanPostProcessor} callbacks.
+	 * <p>The default implementation returns the given {@code bean} as-is.
+	 * @param bean the new bean instance
+	 * @param beanName the name of the bean
+	 * @return the bean instance to use, either the original or a wrapped one;
+	 * if {@code null}, no subsequent BeanPostProcessors will be invoked
+	 * @throws org.springframework.beans.BeansException in case of errors
+	 * @see org.springframework.beans.factory.InitializingBean#afterPropertiesSet
+	 * @see org.springframework.beans.factory.FactoryBean
+	 */
+	@Nullable
+	default Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+		return bean;
+	}
+
+}
+```
+
+​	在初始化方法执行之后做一些操作，如AspectJAwareAdvisorAutoProxyCreator#postProcessAfterInitialization会在该阶段创建代理对象。
+
+```java
+AbstractAutowireCapableBeanFactory#createBean
+	#doCreateBean:
+		#initializeBean：
+			#applyBeanPostProcessorsAfterInitialization：
+				#postProcessAfterInitialization： 执行初始化后阶段的处理
+```
+
+#### Bean初始化完成
+
+```java
+public interface SmartInitializingSingleton {
+
+	/**
+	 * Invoked right at the end of the singleton pre-instantiation phase,
+	 * with a guarantee that all regular singleton beans have been created
+	 * already. {@link ListableBeanFactory#getBeansOfType} calls within
+	 * this method won't trigger accidental side effects during bootstrap.
+	 * <p><b>NOTE:</b> This callback won't be triggered for singleton beans
+	 * lazily initialized on demand after {@link BeanFactory} bootstrap,
+	 * and not for any other bean scope either. Carefully use it for beans
+	 * with the intended bootstrap semantics only.
+	 */
+	void afterSingletonsInstantiated();
+
+}
+```
+
+```java
+AbstractApplicationContext#refresh
+	#finishBeanFactoryInitialization  
+		DefaultListableBeanFactory#preInstantiateSingletons
+			SmartInitializingSingleton#afterSingletonsInstantiated
+```
+
+
+
 #### Bean销毁(Destroy)
 
 + @PreDestroy标注方法。由org.springframework.beans.factory.annotation.CommonAnnotationBeanPostProcessor#postProcessBeforeDestruction处理。
@@ -1519,6 +1864,75 @@ AbstractAutowireCapableBeanFactory#doCreateBean:
 + 指定BeanDefinition的destroyMethodName属性。org.springframework.beans.factory.support.DisposableBeanAdapter#invokeCustomDestroyMethod处理。
 
   如果Bean指定了销毁方法，则会在org.springframework.beans.factory.support.AbstractBeanFactory#registerDisposableBeanIfNecessary处理时在IoC容器中注册DisposableBeanAdapter。
+
+##### 销毁前
+
+````java
+public interface DestructionAwareBeanPostProcessor extends BeanPostProcessor {
+
+	/**
+	 * Apply this BeanPostProcessor to the given bean instance before its
+	 * destruction, e.g. invoking custom destruction callbacks.
+	 * <p>Like DisposableBean's {@code destroy} and a custom destroy method, this
+	 * callback will only apply to beans which the container fully manages the
+	 * lifecycle for. This is usually the case for singletons and scoped beans.
+	 * @param bean the bean instance to be destroyed
+	 * @param beanName the name of the bean
+	 * @throws org.springframework.beans.BeansException in case of errors
+	 * @see org.springframework.beans.factory.DisposableBean#destroy()
+	 * @see org.springframework.beans.factory.support.AbstractBeanDefinition#setDestroyMethodName(String)
+	 */
+	void postProcessBeforeDestruction(Object bean, String beanName) throws BeansException;
+}
+````
+
+##### 销毁
+
+```JAVA
+AbstractAutowireCapableBeanFactory#createBean
+	#doCreateBean
+		#registerDisposableBeanIfNecessary: 
+			DefaultSingletonBeanRegistry#registerDisposableBean:如果是单例对象，并且具有销毁方法，则会创建一个相应的DisposableBeanAdapter Bean，然后注册到容器中
+```
+
+```java
+class DisposableBeanAdapter implements DisposableBean, Runnable, Serializable {
+	@Override
+	public void destroy() {
+		if (!CollectionUtils.isEmpty(this.beanPostProcessors)) {
+			for (DestructionAwareBeanPostProcessor processor : this.beanPostProcessors) {
+				processor.postProcessBeforeDestruction(this.bean, this.beanName);
+			}
+		}
+
+		if (this.invokeDisposableBean) {
+
+			((DisposableBean) this.bean).destroy();
+
+		}
+
+		if (this.destroyMethod != null) {
+			invokeCustomDestroyMethod(this.destroyMethod);
+		}
+		else if (this.destroyMethodName != null) {
+			Method methodToInvoke = determineDestroyMethod(this.destroyMethodName);
+			if (methodToInvoke != null) {
+				invokeCustomDestroyMethod(ClassUtils.getInterfaceMethodIfPossible(methodToInvoke));
+			}
+		}
+	}
+}
+```
+
+​	依次执行DestructionAwareBeanPostProcessor#postProcessBeforeDestruction(CommonAnnotationBeanPostProcessor#postProcessBeforeDestruction处理@PreDestroy标注方法)、DisposableBean#destroy和AbstractBeanDefinition#destroyMethodName对应的方法。
+
+#### Bean GC
+
+管理Spring容器后，Bean强引用会失效，然后执行GC便会回收Bean。但是GC执行时机不确定。
+
+还可以实现java.lang.Object#finalize方法在回收前执行清理工作，不过该方法不一定执行，而且被标记为启用。
+
+要想实现对象回收前的清理工作，可以使用ReferenceQueue实现。
 
 #### 注册外部单例对象
 
