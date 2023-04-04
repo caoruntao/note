@@ -1030,7 +1030,7 @@ DefaultListableBeanFactory#resolveDependency：
 2. BeanFactory 与 FactoryBean
 3. Spring IoC容器启动时做了哪些准备
 
-## Bean
+## Spring Bean
 
 ### Bean实例
 
@@ -1945,8 +1945,212 @@ class DisposableBeanAdapter implements DisposableBean, Runnable, Serializable {
 1. 如何注册一个Spring Bean
 2. 什么是Spring BeanDefinition
 3. Spring容器如何管理注册Bean
+3. BeanpPostProcessor的使用场景
 
-## 元信息
+BeanPostProcessor提供对Spring Bean初始化前和初始化后阶段的生命周期回调，分别对应postProcessBeforeInitiaztion和postProcessAfterInitiaztion，允许对于Bean进行扩展或者替换
+
+5. BeanFactoryPostProcessor和BeanPostProcessor的区别
+
+BeanFactoryPostProcessor提供了对BeanFactory的后置操作，用于扩展BeanFactory，如添加BeanPostProcessor或获取Bean，需要结合AplplicationContext使用。
+
+BeanPostProcessor和BeanFactory的关系是N：1，一个BeanFacroty可以关联多个BeanPostProcessor。
+
+	6.	BeanFactory如何处理Bean的生命周期
+
+BeanFactory的默认实现是DefaultListableBeanFactory，提供了以下Bean的生命周期：
+
+1. BeanDefinition注册。registerBeanDefinition
+2. BeanDefinition合并阶段，变成RootBeanDefinition。getMergedBeanDefinition
+3. Bean实例化前阶段。resolveBeforeInstantiation
+4. Bean实例化阶段。createBeanInstance
+5. Bean实例化后阶段。postProcessAfterInstantiation
+6. Bean属性赋值前阶段。postProcessPropertyValues
+7. Bean属性赋值阶段。applyPropertyValues
+8. Bean Aware接口回调。invokeAwareMethods
+9. Bean初始化前阶段。initializeBean
+10. Bean初始化阶段。initization
+11. Bean初始化后阶段。initization
+12. Bean初始化完成阶段。preInstantiateSingletons
+13. Bean销毁前阶段。destroyBean
+14. Bean销毁阶段。destroyBean
+
+
+
+## Spring 配置元信息
+
+### Bean配置元信息 - BeanDefinition
+
+#### BeanDefinition类型
+
+##### GenericBeanDefinition
+
+```java
+public class GenericBeanDefinition extends AbstractBeanDefinition {
+    ...
+    @Override
+	public void setParentName(@Nullable String parentName) {
+		this.parentName = parentName;
+	}
+    ...
+}
+```
+
+​	通用的BeanDefinition，可以设置parentName
+
+##### RootBeanDefinition
+
+```java
+public class RootBeanDefinition extends AbstractBeanDefinition {
+    ...
+    @Override
+	public void setParentName(@Nullable String parentName) {
+		if (parentName != null) {
+			throw new IllegalArgumentException("Root bean cannot be changed into a child bean with parent reference");
+		}
+	}
+    ...
+}
+```
+
+​	没有parentName的BeanDefinition，或者有parentName的GenericBeanDefinition经过合并后获得的BeanDefinition
+
+##### AnnotatedBeanDefinition
+
+```java
+public interface AnnotatedBeanDefinition extends BeanDefinition {
+
+	/**
+	 * Obtain the annotation metadata (as well as basic class metadata)
+	 * for this bean definition's bean class.
+	 * @return the annotation metadata object (never {@code null})
+	 */
+	AnnotationMetadata getMetadata();
+
+	/**
+	 * Obtain metadata for this bean definition's factory method, if any.
+	 * @return the factory method metadata, or {@code null} if none
+	 * @since 4.1.1
+	 */
+	@Nullable
+	MethodMetadata getFactoryMethodMetadata();
+
+}
+```
+
+​	从注解中解析出的BeanDefinition，含有AnnotationMetadata(注解元信息)。AnnotationMetadata有两种实现方式，
+
+​	StandardAnnotationMetadata利用标准的JAVA反射从类中获取注解元信息。
+
+​	SimpleAnnotationMetadata利用ASM获取注解元信息，因为ASM基于字节码进行操作，省略了类加载的过程，因此效率会高一些。
+
+### Bean属性元信息 - PropertyValues
+
+#### MutablePropertyValues
+
+```java
+public class MutablePropertyValues implements PropertyValues, Serializable {
+	...
+    public void addPropertyValue(String propertyName, Object propertyValue) {
+		addPropertyValue(new PropertyValue(propertyName, propertyValue));
+	}
+    
+    public void removePropertyValue(String propertyName) {
+		this.propertyValueList.remove(getPropertyValue(propertyName));
+	}
+    ...
+}
+```
+
+```java
+public interface PropertyValues extends Iterable<PropertyValue> {
+	...
+    PropertyValue[] getPropertyValues();
+    ...
+}
+```
+
+​	PropertyValues是PropertyValue的集合，一个PropertyValues可以包含多个PropertyValue。MutablePropertyValues是可变的PropertyValues，可以对PropertyValue进行添加删除。
+
+​	PropertyValue中name和value都是final修饰的，这代表着PropertyValue一经创建便无法改变，因此想要修改PropertyValue只能将老的PropertyValue删除，然后在添加具有相同propertyName的新PropertyValue。
+
+#### AttributeAccessor
+
+```java
+public interface BeanDefinition extends AttributeAccessor, BeanMetadataElement {
+	...
+}
+```
+
+​	BeanDefinition继承了AttributeAccessor和BeanMetadataElement接口。
+
+```java
+/**
+ * Interface defining a generic contract for attaching and accessing metadata
+ * to/from arbitrary objects.
+ *
+ * @author Rob Harrop
+ * @author Sam Brannen
+ * @since 2.0
+ */
+public interface AttributeAccessor {
+
+	/**
+	 * Set the attribute defined by {@code name} to the supplied {@code value}.
+	 * <p>If {@code value} is {@code null}, the attribute is {@link #removeAttribute removed}.
+	 * <p>In general, users should take care to prevent overlaps with other
+	 * metadata attributes by using fully-qualified names, perhaps using
+	 * class or package names as prefix.
+	 * @param name the unique attribute key
+	 * @param value the attribute value to be attached
+	 */
+	void setAttribute(String name, @Nullable Object value);
+
+	/**
+	 * Get the value of the attribute identified by {@code name}.
+	 * <p>Return {@code null} if the attribute doesn't exist.
+	 * @param name the unique attribute key
+	 * @return the current value of the attribute, if any
+	 */
+	@Nullable
+	Object getAttribute(String name);
+	... 
+
+}
+```
+
+​	AttributeAccessor可以让我们在BeanDefinition中设置一些附加属性，帮助我们更好地定义BeanDefinition。
+
+#### BeanMetadataElement
+
+```java
+/**
+ * Interface to be implemented by bean metadata elements
+ * that carry a configuration source object.
+ *
+ * @author Juergen Hoeller
+ * @since 2.0
+ */
+public interface BeanMetadataElement {
+
+	/**
+	 * Return the configuration source {@code Object} for this metadata element
+	 * (may be {@code null}).
+	 */
+	@Nullable
+	default Object getSource() {
+		return null;
+	}
+
+}
+```
+
+​	BeanMetadataElement可以使我们在BeanDefinition中设置属性来源，如来自哪个类，或者哪个文件等。
+
+### 容器配置元信息
+
+### 外部化配置元信息 - PropertySource
+
+### Profile元信息 - @Profile
 
 ### 注解
 
