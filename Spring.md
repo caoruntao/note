@@ -2148,6 +2148,30 @@ public interface BeanMetadataElement {
 
 ### 容器配置元信息
 
+| beans 元素属性              | 默认值  | 使用场景                                                    |
+| --------------------------- | ------- | ----------------------------------------------------------- |
+| profile                     | null    | Spring Profiles配置值                                       |
+| default-lazy-init           | default | 当outter beans 存在default-lazy-init属性则继承，否则为false |
+| default-merge               | default | 当outter beans 存在default-merge属性则继承，否则为false     |
+| default-autowire            | default | 当outter beans 存在default-autowire属性则继承，否则为no     |
+| default-autowire-candidates | null    | 默认Spring Beans名称 pattern                                |
+| default-init-method         | null    | 默认Spring Beans自定义初始化方法                            |
+| default-destroy-method      | null    | 默认Spring Beans自定义销毁方法                              |
+
+
+
+| XML元素                           | 使用场景                             |
+| --------------------------------- | ------------------------------------ |
+| \<context:annotation-config />    | 激活Spring注解驱动                   |
+| \<context:component-scan />       | Spring @Component 以及自定义注解扫描 |
+| \<context:load-time-weaver />     | 激活Spring LoadTimeWeaver            |
+| \<context:mbean-export />         | 暴露Spring Beans 作为JMX Beans       |
+| \<context:mbean-server />         | 将当前平台作为 MBeanServer           |
+| \<context:property-placeholder /> | 加载外部化配置作为Spring属性配置     |
+| \<context:property-override />    | 利用外部化配置资源覆盖Spring属性值   |
+
+
+
 ### 外部化配置元信息 - PropertySource
 
 ### Profile元信息 - @Profile
