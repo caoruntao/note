@@ -2043,6 +2043,58 @@ public interface AnnotatedBeanDefinition extends BeanDefinition {
 
 ​	SimpleAnnotationMetadata利用ASM获取注解元信息，因为ASM基于字节码进行操作，省略了类加载的过程，因此效率会高一些。
 
+#### BeanDefinition装载
+
+```java
+public interface BeanDefinitionReader {
+
+   BeanDefinitionRegistry getRegistry();
+
+   @Nullable
+   ResourceLoader getResourceLoader();
+
+   @Nullable
+   ClassLoader getBeanClassLoader();
+
+   BeanNameGenerator getBeanNameGenerator();
+
+   int loadBeanDefinitions(Resource resource) throws BeanDefinitionStoreException;
+
+   int loadBeanDefinitions(Resource... resources) throws BeanDefinitionStoreException;
+
+   int loadBeanDefinitions(String location) throws BeanDefinitionStoreException;
+
+   int loadBeanDefinitions(String... locations) throws BeanDefinitionStoreException;
+}
+```
+
+##### 基于XML
+
+```
+XmlBeanDefinitionReader#loadBeanDefinitions(String)
+	#loadBeanDefinitions
+		ResourceLoader#getResource: 根据location加载Resource
+		#loadBeanDefinitions(Resource)
+			#doLoadBeanDefinitions
+				#doLoadDocument
+					DefaultDocumentLoader#loadDocument
+						DocumentBuilder#parse: 返回Document
+				#registerBeanDefinitions
+					BeanDefinitionDocumentReader#registerBeanDefinitions
+						DefaultBeanDefinitionDocumentReader#doRegisterBeanDefinitions
+							这里还会处理profile，如果profile不符合，则直接返回
+							#parseBeanDefinitions
+								#parseDefaultElement
+									#importBeanDefinitionResource: 处理import导入的资源
+									#processAliasRegistration: 注册别名
+									#processBeanDefinition: 注册BeanDefinition
+										BeanDefinitionParserDelegate#parseBeanDefinitionElement
+										
+									#doRegisterBeanDefinitions: 重复上层操作
+```
+
+
+
 ### Bean属性元信息 - PropertyValues
 
 #### MutablePropertyValues
