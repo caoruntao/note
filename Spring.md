@@ -2070,6 +2070,15 @@ public interface BeanDefinitionReader {
 
 ##### 基于XML
 
+Spring XML 资源BeanDefinition 解析与注册
+
++ 核心API - XMLBeanDeinitionReader
+  + 资源 - Resource
+  + 底层 - BeanDefinitionDocumentReader
+    + XML解析 - Java DOM Level 3 API
+    + BeanDefinition解析 - BeanDefinitionParserDelegate
+    + BeanDefinition注册 - BeanDefinitionRegistry
+
 ```
 XmlBeanDefinitionReader#loadBeanDefinitions(String)
 	#loadBeanDefinitions
@@ -2091,6 +2100,56 @@ XmlBeanDefinitionReader#loadBeanDefinitions(String)
 										BeanDefinitionParserDelegate#parseBeanDefinitionElement
 										
 									#doRegisterBeanDefinitions: 重复上层操作
+```
+
+##### 基于Properties
+
+Spring Properties资源BeanDefinition解析与注册
+
++ 核心API PropertiesBeanDefinitionReader
+  + 资源
+    + 字节流 - Resource
+    + 字符流 - EncodedResource
+  + 底层
+    + Properties解析 - PropertiesPersister
+    + BeanDefinition解析 - API内部实现
+    + BeanDefinition注册 - BeanDefinitionRegistry
+
+```
+PropertiesBeanDefinitionReader#loadBeanDefinitions
+	PropertiesPersister#load: 将Resource的inputStream加载到之前创建的Properties
+		#registerBeanDefinitions: 根据分隔符获取beanName,然后根据beanName去注册BeanDefinition
+			#registerBeanDefinition: 按照规则去获取BeanDefinition相关的数据
+				BeanDefinitionReaderUtils#createBeanDefinition: 根据数据生成GenericBeanDefinition
+				BeanDefinitionRegistry#registerBeanDefinition：注册
+```
+
+##### 基于注解
+
+Spring Java注册 BeanDefinition 解析与注册
+
++ 核心API - AnnotatedBeanDefinitionReader
+  + 资源
+    + 类对象 - java.lang.Class
+  + 底层
+    + 条件评估 - ConditionEvaluator
+    + Bean范围解析 - ScopeMetadateResolver
+    + BeanDefinition解析 - 内部API实现
+    + BeanDefinition处理 - AnnotationConfigUtils.processCommonDefinitionAnnotations
+    + BeanDefinition注册 - BeanDefinitionReaderUtils#registerBeanDefinition
+
+```
+AnnotatedBeanDefinitionReader#registerBean:
+	#doRegisterBean:
+		AnnotatedGenericBeanDefinition: 创建
+		ConditionEvaluator#shouldSkip: 是否跳过注册
+		ScopeMetadataResolver#resolveScopeMetadata: 解析作用域
+		BeanNameGenerator#generateBeanName: 不指定BeanName则生成
+		AnnotationConfigUtils#processCommonDefinitionAnnotations:
+			#processCommonDefinitionAnnotations: 处理@Lazy、@Primary、@DependsOn、@Description注解
+		BeanDefinitionCustomizer#customize： 自定义BeanDefinition处理
+		AnnotationConfigUtils#applyScopedProxyMode: 根据代理模式确定是否生成代理对象(如ReqeustScope，会使用代理，依赖注入时注入一个代理对象，然后根据请求的不同会获取到不同的对象)
+		BeanDefinitionReaderUtils#registerBeanDefinition: 注册BeanDefinition
 ```
 
 
