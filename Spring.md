@@ -2281,17 +2281,119 @@ public interface BeanMetadataElement {
 | \<context:property-placeholder /> | 加载外部化配置作为Spring属性配置     |
 | \<context:property-override />    | 利用外部化配置资源覆盖Spring属性值   |
 
+#### 基于XML
 
+| 命名空间 | 所属模块       | Scheme资源URL                                                |
+| -------- | -------------- | ------------------------------------------------------------ |
+| beans    | spring-beans   | https://www.springframework.org/schema/beans/spring-beans.xsd |
+| context  | spring-context | https://www.springframework.org/schema/context/spring-context.xsd |
+| aop      | spring-aop     | https://www.springframework.org/schema/aop/spring-aop.xsd    |
+| tx       | spring-tx      | https://www.springframework.org/schema/tx/spring-tx.xsd      |
+| util     | spring-util    | https://www.springframework.org/schema/util/spring-util.xsd  |
+| tool     | spring-tool    | https://www.springframework.org/schema/tool/spring-util.xsd  |
+
+spring.scheme
+
+spring.handler：NamespaceHandlerSupport、BeanDefinitionDecorator
+
+#### 基于注解
+
+##### Spring IoC容器装配注解
+
+| Spring注解      | 场景说明                                | 起始版本 |
+| --------------- | --------------------------------------- | -------- |
+| @ImportResource | 替换XML元素\<import>                    | 3.0      |
+| @Import         | 导入Configuration Class                 | 3.0      |
+| @ComponentScan  | 扫描指定package下标注Spring模式注解的类 | 3.1      |
+
+##### Spring IoC 配置属性注解
+
+| Spring注解       | 场景说明                        | 起始版本 |
+| ---------------- | ------------------------------- | -------- |
+| @PropertySource  | 配置属性抽象PropertySource 注解 | 3.1      |
+| @PropertySources | @PropertySource 集合注解        | 4.0      |
+
+#### Spring XML 扩展
+
++ 编写 XML Scheme文件： 定义 XML结构
++ 自定义 NamespaceHandler实现： 命名空间绑定
++ 自定义 BeanDefinitionParser实现： XML元素与BeanDefinition解析
++ 注册XML 扩展： 命名空间与XML Scheme映射
 
 ### 外部化配置元信息 - PropertySource
 
+#### 基于Properties 资源
+
+##### 基于注解
+
+```java
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Repeatable(PropertySources.class)
+public @interface PropertySource {
+
+	String name() default "";
+	
+    ...
+        
+	String encoding() default "";
+
+	Class<? extends PropertySourceFactory> factory() default PropertySourceFactory.class;
+}
+```
+
+​	使用@PropertySource，其中name指明外部化文件位置，factory指明如何将外部化文件解析为PropertySource。
+
+​	默认的PropertySourceFactory为DefaultPropertySourceFactory，可以将properties文件解析为PropertySource。
+
+##### 基于API
+
+```java
+public interface ConfigurableEnvironment extends Environment, ConfigurablePropertyResolver {
+	...
+	
+	MutablePropertySources getPropertySources();
+
+	...
+}
+```
+
+​	PropertySource可以从ConfigurableEnvironment中获取，ConfigurableEnvironment绑定多个PropertySource，取值时顺序从PropertySource中取，取到就返回，因此自定义一个PropertySource到ConfigurableEnvironment，并且放到首位。
+
+#### 基于YML资源
+
+##### 基于API
+
++ YamlProcessor
+  + YamlPropertiesFactoryBean
+  + YamlMapFactoryBean
+
+##### 基于注解
+
+​	使用@PropertySource，使用YamlProcessor扩展PropertySourceFactory，然后通过factory指定扩展类。
+
 ### Profile元信息 - @Profile
 
-### 注解
+### 面试题
 
-### 配置元信息
+1. Spring 内建XML Scheme有哪些
 
-### 外部化属性
++ beans
++ context
++ aop
++ tx
++ util
++ tool
+
+2. Spring 配置元信息具体有哪些
+
++ Bean 配置元信息： 通过媒介(XML、Properties等)，解析BeanDefinition
++ IoC容器配置元信息：通过媒介(XML、Properties等)，控制IoC容器的行为，如注解驱动，AOP等
++ 外部化配置： 通过资源抽象（Properties、YAML等）， 控制PropertySource
++ Spring Profile： 通过外部化配置，提供条件分支流程
+
+3. XML 扩展的缺点
 
 ## 基础设施
 
