@@ -2395,9 +2395,63 @@ public interface ConfigurableEnvironment extends Environment, ConfigurableProper
 
 3. XML 扩展的缺点
 
++ 高复杂度
++ 嵌套元素支持较弱
++ XML处理性能较差
++ XML框架移植性差
+
+
+
 ## 基础设施
 
 ### 资源管理
+
+#### Java资源管理
+
+##### Java标准资源定位
+
+| 职责         | 说明                                                         |
+| ------------ | ------------------------------------------------------------ |
+| 面向资源     | 文件系统、artfact(jar、war、ear)和远程资源(FTP、HTTP、HTTPS等) |
+| API整合      | ClassLoader#getResource、File、URL                           |
+| 资源定位     | URL 或 URI                                                   |
+| 面向流式存储 | URLConnection                                                |
+| 协议扩展     | URLStreamHandler 或 URLStreamHandlerFactory                  |
+
+##### Java  URL 协议扩展
+
++ 基于URLStreamHandlerFactory
+
+  ```
+  java.net.URLStreamHandlerFactory#createURLStreamHandler: 创建URLStreamHandler
+  	java.net.URLStreamHandler#openConnection(java.net.URL)： 打开URLConnect
+  		java.net.URLConnection#getInputStream： 获取输入流
+  ```
+
+  URLStreamHandlerFactory通过java.net.URL#setURLStreamHandlerFactory设置，由JVM调用，只可设置一次。
+
++ 基于URLStreamHandler
+
+JDK 1.8 内建协议实现
+
+| 协议   | 实现类                              |
+| ------ | ----------------------------------- |
+| file   | sun.net.www.protocol.file.Handler   |
+| ftp    | sun.net.www.protocol.ftp.Handler    |
+| http   | sun.net.www.protocol.http.Handler   |
+| https  | sun.net.www.protocol.https.Handler  |
+| jar    | sun.net.www.protocol.jar.Handler    |
+| mailto | sun.net.www.protocol.mailto.Handler |
+| netdoc | sun.net.www.protocol.netdoc.Handler |
+
+扩展
+
+| 实现类名规则 | 说明                                                         |
+| ------------ | ------------------------------------------------------------ |
+| 默认         | sun.net.www.protocol.{protocol}.Handler                      |
+| 自定义       | 通过java.protocol.handler.pkgs指定实现包名，实现类必须为“Handler”。如果存在多个包名，用“\|”分隔。 |
+
+
 
 ### 类型转换
 
