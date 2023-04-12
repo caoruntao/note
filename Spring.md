@@ -2451,6 +2451,37 @@ JDK 1.8 内建协议实现
 | 默认         | sun.net.www.protocol.{protocol}.Handler                      |
 | 自定义       | 通过java.protocol.handler.pkgs指定实现包名，实现类必须为“Handler”。如果存在多个包名，用“\|”分隔。 |
 
+#### Spring资源管理
+
+##### 资源接口
+
+| 类型       | 接口                                                |
+| ---------- | --------------------------------------------------- |
+| 输入流     | org.springframework.core.io.InputStreamSource       |
+| 只读资源   | org.springframework.core.io.Resource                |
+| 可写资源   | org.springframework.core.io.WritableResource        |
+| 编码资源   | org.springframework.core.io.support.EncodedResource |
+| 上下文资源 | org.springframework.core.io.ContextResource         |
+
+​	Resource有一个漏洞，即使Resource不是可写资源，也有可能进行写操作
+
+```java
+org.springframework.core.io.Resource#getURL
+	java.net.URL#openConnection
+		java.net.URLConnection#getOutputStream
+```
+
+##### 内建实现
+
+| 资源来源       | 资源协议      | 实现类                                                       |
+| -------------- | ------------- | ------------------------------------------------------------ |
+| Bean 定义      | 无            | org.springframework.beans.factory.support.BeanDefinitionResource |
+| 数组           | 无            | org.springframework.core.io.ByteArrayResource                |
+| 类路径         | classpth:/    | org.springframework.core.io.ClassPathResource                |
+| 文件系统       | file:/        | org.springframework.core.io.FileSystemResource               |
+| URL            | URL支持的协议 | org.springframework.core.io.UrlResource                      |
+| ServletContext | 无            | org.springframework.web.context.support.ServletContextResource |
+
 
 
 ### 类型转换
