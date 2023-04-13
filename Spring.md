@@ -2482,7 +2482,84 @@ org.springframework.core.io.Resource#getURL
 | URL            | URL支持的协议 | org.springframework.core.io.UrlResource                      |
 | ServletContext | 无            | org.springframework.web.context.support.ServletContextResource |
 
+##### 资源加载器 - ResourceLoader
 
+```java
+public interface ResourceLoader {
+
+	Resource getResource(String location);
+
+	@Nullable
+	ClassLoader getClassLoader();
+
+}
+```
+
+​	ResourceLoader默认实现为DefaultResourceLoader
+
+```java
+public class DefaultResourceLoader implements ResourceLoader {
+
+	@Nullable
+	private ClassLoader classLoader;
+
+	private final Set<ProtocolResolver> protocolResolvers = new LinkedHashSet<>(4);
+	...
+
+	@Override
+	public Resource getResource(String location) {
+		Assert.notNull(location, "Location must not be null");
+
+		for (ProtocolResolver protocolResolver : getProtocolResolvers()) {
+			Resource resource = protocolResolver.resolve(location, this);
+			if (resource != null) {
+				return resource;
+			}
+		}
+
+		if (location.startsWith("/")) {
+			return getResourceByPath(location);
+		}
+		else if (location.startsWith(CLASSPATH_URL_PREFIX)) {
+			return new ClassPathResource(location.substring(CLASSPATH_URL_PREFIX.length()), getClassLoader());
+		}
+		else {
+			try {
+				// Try to parse the location as a URL...
+				URL url = new URL(location);
+				return (ResourceUtils.isFileURL(url) ? new FileUrlResource(url) : new UrlResource(url));
+			}
+			catch (MalformedURLException ex) {
+				// No URL -> resolve as resource path.
+				return getResourceByPath(location);
+			}
+		}
+	}
+
+	/**
+	 * Return a Resource handle for the resource at the given path.
+	 * <p>The default implementation supports class path locations. This should
+	 * be appropriate for standalone implementations but can be overridden,
+	 * e.g. for implementations targeted at a Servlet container.
+	 */
+	protected Resource getResourceByPath(String path) {
+		return new ClassPathContextResource(path, getClassLoader());
+	}
+
+}
+```
+
+​	DefaultResourceLoader主要有几个重要实现：
+
+ + FileSystemResourceLoader
+
+ + ClassRelativeResourceLoader
+
+ + AbstractApplicationContext
+
+ + ServletContextResourceLoader
+
+   
 
 ### 类型转换
 
