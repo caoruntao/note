@@ -2552,14 +2552,61 @@ public class DefaultResourceLoader implements ResourceLoader {
 ​	DefaultResourceLoader主要有几个重要实现：
 
  + FileSystemResourceLoader
-
  + ClassRelativeResourceLoader
-
  + AbstractApplicationContext
-
  + ServletContextResourceLoader
 
-   
+
+##### 通配路径资源加载器 - ResourcePatternResolver
+
+```JAVA
+public interface ResourcePatternResolver extends ResourceLoader {
+	...
+        
+	Resource[] getResources(String locationPattern) throws IOException;
+
+}
+```
+
+​	PathMatchingResourcePatternResolver：路径匹配资源加载器，ResourcePatternResolver默认实现。主要包括PathMatcher和ResourceLoader，通过PathMatcher去进行路径匹配，匹配成功后使用ResourceLoader进行资源加载。
+
+​	PathMatcher：路径匹配器，默认实现为AntPathMatcher，使用ant模式去匹配，*.jsp匹配所有jsp后缀的文件，\*.\*匹配所有文件。
+
+​	可以实现PathMatcher去自定义路径匹配的规则。
+
+##### 依赖注入Resource
+
+基于@Value实现
+
+```java
+@Value("classpath:/...")
+private Resource resource;
+```
+
+##### 依赖注入ResourceLoader
+
++ ResourceLoaderAware回调注入，由ApplicationContextAwareProcessor#postProcessBeforeInitialization
++ @Autowired注入ResourceLoader
++ 注入ApplicationContext作为ResourceLoader
+
+#### 面试题
+
+1. Spring 配置资源中有哪些常见类型
+   1.  XML
+   2. Properties
+   3. Yaml
+2. 列举不同类型Spring配置资源
+   1. XML
+      1. 普通Bean Definition XML配置资源 - *.xml
+      2. Spring Scheme资源 - *.xsd
+   2. Properties
+      1. 普通 Properties格式资源 - *.properties
+      2. Spring Handler 实现映射文件 - META-INF/spring.handlers
+      3. Spring Scheme 资源映射文件 - META-INF/spring.shemas
+      4. Spring Boot中自动装配文件 - META-INF/spring.factories
+   3. YAML
+      1. 普通YAML 配置资源 - \*.yaml或\*.yml
+3. Java 标准资源管理扩展步骤
 
 ### 类型转换
 
