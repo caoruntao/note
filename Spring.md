@@ -2608,17 +2608,114 @@ private Resource resource;
       1. 普通YAML 配置资源 - \*.yaml或\*.yml
 3. Java 标准资源管理扩展步骤
 
-### 类型转换
+### 国际化
 
-### 数据绑定
+#### 使用场景
+
++ 普通国际化文案
++ Bean Validation校验国际化文案
++ Web站点页面渲染
++ Spring MVC错误信息提示
+
+#### Spring 国际化接口 - MessageSource
+
+```java
+public interface MessageSource {
+
+	/**
+	 * Try to resolve the message. Return default message if no message was found.
+	 * @param code the message code to look up, e.g. 'calculator.noRateSet'.
+	 * MessageSource users are encouraged to base message names on qualified class
+	 * or package names, avoiding potential conflicts and ensuring maximum clarity.
+	 * @param args an array of arguments that will be filled in for params within
+	 * the message (params look like "{0}", "{1,date}", "{2,time}" within a message),
+	 * or {@code null} if none
+	 * @param defaultMessage a default message to return if the lookup fails
+	 * @param locale the locale in which to do the lookup
+	 * @return the resolved message if the lookup was successful, otherwise
+	 * the default message passed as a parameter (which may be {@code null})
+	 * @see #getMessage(MessageSourceResolvable, Locale)
+	 * @see java.text.MessageFormat
+	 */
+	@Nullable
+	String getMessage(String code, @Nullable Object[] args, @Nullable String defaultMessage, Locale locale);
+
+
+	String getMessage(String code, @Nullable Object[] args, Locale locale) throws NoSuchMessageException;
+
+	/**
+	 * Try to resolve the message using all the attributes contained within the
+	 * {@code MessageSourceResolvable} argument that was passed in.
+	 * <p>NOTE: We must throw a {@code NoSuchMessageException} on this method
+	 * since at the time of calling this method we aren't able to determine if the
+	 * {@code defaultMessage} property of the resolvable is {@code null} or not.
+	 * @param resolvable the value object storing attributes required to resolve a message
+	 * (may include a default message)
+	 * @param locale the locale in which to do the lookup
+	 * @return the resolved message (never {@code null} since even a
+	 * {@code MessageSourceResolvable}-provided default message needs to be non-null)
+	 * @throws NoSuchMessageException if no corresponding message was found
+	 * (and no default message was provided by the {@code MessageSourceResolvable})
+	 * @see MessageSourceResolvable#getCodes()
+	 * @see MessageSourceResolvable#getArguments()
+	 * @see MessageSourceResolvable#getDefaultMessage()
+	 * @see java.text.MessageFormat
+	 */
+	String getMessage(MessageSourceResolvable resolvable, Locale locale) throws NoSuchMessageException;
+
+}
+```
+
+​	接口中有三个重要的参数：
+
+ +	code：文案模板的编码，可以理解为key，value为文案模板，之所以叫文案模板是因为文案模板中可能含有占位符，当占位符被替换后才是真正的文案内容。
+ +	args：文案模板的参数，用来替换文案模板中的占位符，如"{0}", "{1,date}", "{2,time}"。
+ +	locale： 地区，根据locale的不同返回的文案也不同，如zh_CN会返回中国的汉语，en_US会返回美国的英语。
+
+​	MessageSourceResolvable包含多组code和arg，还有一个defaultMessage。
+
+#### 层次性MessageSource
+
+​	HierarchicalMessageSource具有层次性，层次性接口一般会提供一个类似getParent的接口去获取上一层次的接口。这样可以扩大查找的范围，如在当前层次找不到时会去上一层次查找。
+
+```java
+public interface HierarchicalMessageSource extends MessageSource {
+
+	/**
+	 * Set the parent that will be used to try to resolve messages
+	 * that this object can't resolve.
+	 * @param parent the parent MessageSource that will be used to
+	 * resolve messages that this object can't resolve.
+	 * May be {@code null}, in which case no further resolution is possible.
+	 */
+	void setParentMessageSource(@Nullable MessageSource parent);
+
+	/**
+	 * Return the parent of this MessageSource, or {@code null} if none.
+	 */
+	@Nullable
+	MessageSource getParentMessageSource();
+
+}
+```
+
+​	HierarchicalBeanFactory#containsLocalBean方法提供了只从当前层次查找的接口。
+
+​	ApplicationContext#getParent提供了获取上一次层次。
+
+​	BeanDefinition#getParentName提供了获取上一层次的标识。
 
 ### 数据校验
 
-### 国际化
+### 数据绑定
+
+### 类型转换
+
+### 泛型处理
 
 ### 事件
 
-### 泛型处理
+### 
 
 
 
