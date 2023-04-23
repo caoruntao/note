@@ -2705,6 +2705,70 @@ public interface HierarchicalMessageSource extends MessageSource {
 
 ​	BeanDefinition#getParentName提供了获取上一层次的标识。
 
+#### Java国际化标准 - ResourceBundle
+
+核心特性
+
++ Key-Value设计
++ 层次性设计
++ 缓存设计
++ 字符编码控制 - Control(@since 1.6)
++ Control SPI扩展 - ResourceBundleControlProvider(@since 1.8)
+
+##### PropertyResourceBundle
+
+```java
+public class PropertyResourceBundle extends ResourceBundle {
+	...
+       
+    public PropertyResourceBundle (Reader reader) throws IOException {
+        Properties properties = new Properties();
+        properties.load(reader);
+        lookup = new HashMap(properties);
+    }
+    
+    ...    
+}
+```
+
+​	基于PropertyResourceBundle资源实现，因为资源加载需要耗时，因此还提供了缓存功能。
+
+##### ListableResourceBundle
+
+```java
+public abstract class ListResourceBundle extends ResourceBundle {
+	...
+        
+	protected abstract Object[][] getContents();
+    
+	...
+}
+```
+
+​	列举式硬编码的ResourceBundle，实现Object\[][] getContents()方法返回二维数组，其中第一个数组为方案模板的编码，第二个数据为方案模板的内容。
+
+#### Java文本格式化 - MessageFormat
+
+##### 基本用法
+
++ 设置消息格式模式 - new MessageFormat(...)
++ 格式化 - format(new Object[]{...})
+
+##### 消息格式模式
+
++ 格式元素：{ArgumentIndex(, FormatType, (FormatStyle))}
++ FormatType：消息格式类型，可选项， 每种类型在 number、date、time、choice类型选其一
++ FormatStyle：消息格式风格，可选项， 包括short、medium、long、full、integer、currency、percent
+
+示例如下
+
+```java
+  MessageFormat mf = new MessageFormat("{0,number,#.##}, {0,number,#.#}");
+  Object[] objs = {new Double(3.1415)};
+  String result = mf.format( objs );
+  // result now equals "3.14, 3.1"
+```
+
 ### 数据校验
 
 ### 数据绑定
