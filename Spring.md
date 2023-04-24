@@ -2769,6 +2769,204 @@ public abstract class ListResourceBundle extends ResourceBundle {
   // result now equals "3.14, 3.1"
 ```
 
+#### MessageSource内建实现
+
+##### ResourceBundleMessageSource
+
+```java
+public class ResourceBundleMessageSource extends AbstractResourceBasedMessageSource implements BeanClassLoaderAware {
+    @Override
+	public final String getMessage(String code, @Nullable Object[] args, @Nullable String defaultMessage, Locale locale) {
+		String msg = getMessageInternal(code, args, locale);
+		if (msg != null) {
+			return msg;
+		}
+		if (defaultMessage == null) {
+			return getDefaultMessage(code);
+		}
+		return renderDefaultMessage(defaultMessage, args, locale);
+	}
+    
+    @Nullable
+	protected String getMessageInternal(@Nullable String code, @Nullable Object[] args, @Nullable Locale locale) {
+		...
+		Object[] argsToUse = args;
+
+		if (!isAlwaysUseMessageFormat() && ObjectUtils.isEmpty(args)) {
+			...
+		}
+		else {
+			// Resolve arguments eagerly, for the case where the message
+			// is defined in a parent MessageSource but resolvable arguments
+			// are defined in the child MessageSource.
+			argsToUse = resolveArguments(args, locale);
+
+			MessageFormat messageFormat = resolveCode(code, locale);
+			if (messageFormat != null) {
+				synchronized (messageFormat) {
+                    // 使用MessageFormat 格式化
+					return messageFormat.format(argsToUse);
+				}
+			}
+		}
+		...
+		return getMessageFromParent(code, argsToUse, locale);
+	}
+    
+    @Override
+	@Nullable
+	protected MessageFormat resolveCode(String code, Locale locale) {
+		Set<String> basenames = getBasenameSet();
+		for (String basename : basenames) {
+            // 获取ResourceBundle
+			ResourceBundle bundle = getResourceBundle(basename, locale);
+			if (bundle != null) {
+                // 使用ResourceBundle 获取文案模板
+				MessageFormat messageFormat = getMessageFormat(bundle, code, locale);
+				if (messageFormat != null) {
+					return messageFormat;
+				}
+			}
+		}
+		return null;
+	}
+
+}
+```
+
+​	基于ResourceBundle + MessageFormat的实现，ResourceBundle提供文本模板，MessageFormat负责对模板进行格式化。
+
+##### ReloadResourceBundleMessageSource
+
+```java
+public class ReloadableResourceBundleMessageSource extends AbstractResourceBasedMessageSource
+		implements ResourceLoaderAware {
+    @Override
+	@Nullable
+	protected MessageFormat resolveCode(String code, Locale locale) {
+		if (getCacheMillis() < 0) {
+            // 从Properties 中获取
+			PropertiesHolder propHolder = getMergedProperties(locale);
+			MessageFormat result = propHolder.getMessageFormat(code, locale);
+			if (result != null) {
+				return result;
+			}
+		}
+		else {
+			for (String basename : getBasenameSet()) {
+				List<String> filenames = calculateAllFilenames(basename, locale);
+				for (String filename : filenames) {
+					PropertiesHolder propHolder = getProperties(filename);
+					MessageFormat result = propHolder.getMessageFormat(code, locale);
+					if (result != null) {
+						return result;
+					}
+				}
+			}
+		}
+		return null;
+	}
+    
+    
+    protected PropertiesHolder refreshProperties(String filename, @Nullable PropertiesHolder propHolder) {
+		long refreshTimestamp = (getCacheMillis() < 0 ? -1 : System.currentTimeMillis());
+
+		Resource resource = this.resourceLoader.getResource(filename + PROPERTIES_SUFFIX);
+		if (!resource.exists()) {
+			resource = this.resourceLoader.getResource(filename + XML_SUFFIX);
+		}
+
+		if (resource.exists()) {
+			long fileTimestamp = -1;
+			if (getCacheMillis() >= 0) {
+				// Last-modified timestamp of file will just be read if caching with timeout.
+				try {
+					fileTimestamp = resource.lastModified();
+					if (propHolder != null && propHolder.getFileTimestamp() == fileTimestamp) {
+						if (logger.isDebugEnabled()) {
+							logger.debug("Re-caching properties for filename [" + filename + "] - file hasn't been modified");
+						}
+						propHolder.setRefreshTimestamp(refreshTimestamp);
+						return propHolder;
+					}
+				}
+				catch (IOException ex) {
+					// Probably a class path resource: cache it forever.
+					if (logger.isDebugEnabled()) {
+						logger.debug(resource + " could not be resolved in the file system - assuming that it hasn't changed", ex);
+					}
+					fileTimestamp = -1;
+				}
+			}
+			try {
+				Properties props = loadProperties(resource, filename);
+				propHolder = new PropertiesHolder(props, fileTimestamp);
+			}
+			catch (IOException ex) {
+				if (logger.isWarnEnabled()) {
+					logger.warn("Could not parse properties file [" + resource.getFilename() + "]", ex);
+				}
+				// Empty holder representing "not valid".
+				propHolder = new PropertiesHolder();
+			}
+		}
+
+		else {
+			// Resource does not exist.
+			if (logger.isDebugEnabled()) {
+				logger.debug("No properties file found for [" + filename + "] - neither plain properties nor XML");
+			}
+			// Empty holder representing "not found".
+			propHolder = new PropertiesHolder();
+		}
+
+		propHolder.setRefreshTimestamp(refreshTimestamp);
+		this.cachedProperties.put(filename, propHolder);
+		return propHolder;
+	}
+}
+```
+
+
+
+​	基于Properties + MessageFormat的实现，使用Properties作为文本模板存储，MessageFormat负责对模板进行格式化。并且可以自动刷新，自动刷新依据lastModified更新，但不一定有用，如有些资源是没有该属性，而且对于在Docker中运行的静态文件来说，不会进行修改。
+
+##### MessageSource内建依赖
+
+```java
+protected void initMessageSource() {
+		ConfigurableListableBeanFactory beanFactory = getBeanFactory();
+		if (beanFactory.containsLocalBean(MESSAGE_SOURCE_BEAN_NAME)) {
+			this.messageSource = beanFactory.getBean(MESSAGE_SOURCE_BEAN_NAME, MessageSource.class);
+			// Make MessageSource aware of parent MessageSource.
+			if (this.parent != null && this.messageSource instanceof HierarchicalMessageSource) {
+				HierarchicalMessageSource hms = (HierarchicalMessageSource) this.messageSource;
+				if (hms.getParentMessageSource() == null) {
+					// Only set parent context as parent MessageSource if no parent MessageSource
+					// registered already.
+					hms.setParentMessageSource(getInternalParentMessageSource());
+				}
+			}
+			if (logger.isTraceEnabled()) {
+				logger.trace("Using MessageSource [" + this.messageSource + "]");
+			}
+		}
+		else {
+			// Use empty MessageSource to be able to accept getMessage calls.
+			DelegatingMessageSource dms = new DelegatingMessageSource();
+			dms.setParentMessageSource(getInternalParentMessageSource());
+			this.messageSource = dms;
+			beanFactory.registerSingleton(MESSAGE_SOURCE_BEAN_NAME, this.messageSource);
+			if (logger.isTraceEnabled()) {
+				logger.trace("No '" + MESSAGE_SOURCE_BEAN_NAME + "' bean, using [" + this.messageSource + "]");
+			}
+		}
+	}
+```
+
++ 首先从BeanFactory中查找名为“messageSource”，类型为MessageSource的Bean，找到则使用
++ 找不到则内建一个DelegatingMessageSource，该实现为空实现（没有任何文本模板），只是提供了一个层次性查找MessageSource的功能。
+
 ### 数据校验
 
 ### 数据绑定
@@ -2778,8 +2976,6 @@ public abstract class ListResourceBundle extends ResourceBundle {
 ### 泛型处理
 
 ### 事件
-
-### 
 
 
 
