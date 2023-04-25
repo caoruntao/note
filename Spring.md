@@ -2967,6 +2967,81 @@ protected void initMessageSource() {
 + 首先从BeanFactory中查找名为“messageSource”，类型为MessageSource的Bean，找到则使用
 + 找不到则内建一个DelegatingMessageSource，该实现为空实现（没有任何文本模板），只是提供了一个层次性查找MessageSource的功能。
 
+#### SpringBoot MessageSource 自动装配
+
+```java
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnMissingBean(name = AbstractApplicationContext.MESSAGE_SOURCE_BEAN_NAME, search = SearchStrategy.CURRENT)
+@AutoConfigureOrder(Ordered.HIGHEST_PRECEDENCE)
+@Conditional(ResourceBundleCondition.class)
+@EnableConfigurationProperties
+public class MessageSourceAutoConfiguration {
+
+	private static final Resource[] NO_RESOURCES = {};
+
+	@Bean
+	@ConfigurationProperties(prefix = "spring.messages")
+	public MessageSourceProperties messageSourceProperties() {
+		return new MessageSourceProperties();
+	}
+
+	@Bean
+	public MessageSource messageSource(MessageSourceProperties properties) {
+		ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
+		if (StringUtils.hasText(properties.getBasename())) {
+			messageSource.setBasenames(StringUtils
+					.commaDelimitedListToStringArray(StringUtils.trimAllWhitespace(properties.getBasename())));
+		}
+		...
+		return messageSource;
+	}
+
+	protected static class ResourceBundleCondition extends SpringBootCondition {
+
+		private static ConcurrentReferenceHashMap<String, ConditionOutcome> cache = new ConcurrentReferenceHashMap<>();
+
+		@Override
+		public ConditionOutcome getMatchOutcome(ConditionContext context, AnnotatedTypeMetadata metadata) {
+			String basename = context.getEnvironment().getProperty("spring.messages.basename", "messages");
+			ConditionOutcome outcome = cache.get(basename);
+			if (outcome == null) {
+				outcome = getMatchOutcomeForBasename(context, basename);
+				cache.put(basename, outcome);
+			}
+			return outcome;
+		}
+
+		private ConditionOutcome getMatchOutcomeForBasename(ConditionContext context, String basename) {
+			...
+		}
+
+		private Resource[] getResources(ClassLoader classLoader, String name) {
+			...
+		}
+
+	}
+
+}
+```
+
+​	MessageSourceAutoConfiguration在ApplicationContext没有名为AbstractApplicationContext.MESSAGE_SOURCE_BEAN_NAME的Bean，且spring.messages.basename对应的文件存在时，会自动装配一个MessageSourceProperties Bean。
+
+#### 面试题
+
+1. Spring 国际化接口有哪些
+
+  +	MessageSource
+  +	HierarchicalMessageSource
+
+2. Spring 有哪些MessageSource内建实现
+
++ ResourceBundleMessageSource
++ ReloadableResourceBundleMessageSource
++ StaticMessageSource
++ DelegatingMessageSource
+
+3. 如何实现配置自动更新MessageSource
+
 ### 数据校验
 
 ### 数据绑定
