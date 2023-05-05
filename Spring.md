@@ -3044,6 +3044,29 @@ public class MessageSourceAutoConfiguration {
 
 ### 数据校验
 
+#### 使用场景
+
+##### Spring 常规校验(Validator)
+
+##### Spring 数据绑定(DataBinder)
+
+##### Spring Web 参数绑定(WebDataBinder)
+
+##### Spring WebMVC/WebFlux 处理方法参数校验
+
+##### Validator
+
++ 接口职责
+  + 用于内部校验，通过编程的方式校验目标对象
++ 核心方法
+  + supports(Class)：校验目标类能否校验
+  + validate(Object，Errors)：校验目标对象，并将校验失败的内容输出至Errors对象
++ 配套组件
+  + 错误收集器： Errors
+  + Validator工具类： ValidationUtils
+
+##### Errors
+
 ### 数据绑定
 
 ### 类型转换
