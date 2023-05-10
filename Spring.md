@@ -3054,18 +3054,138 @@ public class MessageSourceAutoConfiguration {
 
 ##### Spring WebMVC/WebFlux 处理方法参数校验
 
-##### Validator
+#### Validator
+
+```java
+public interface Validator {
+
+	boolean supports(Class<?> clazz);
+
+	void validate(Object target, Errors errors);
+
+}
+```
 
 + 接口职责
-  + 用于内部校验，通过编程的方式校验目标对象
+  + Spring内部校验接口，通过编程的方式校验目标对象
 + 核心方法
   + supports(Class)：校验目标类能否校验
   + validate(Object，Errors)：校验目标对象，并将校验失败的内容输出至Errors对象
 + 配套组件
-  + 错误收集器： Errors
-  + Validator工具类： ValidationUtils
+  + 错误收集器： Errors，用于组织和存储校验失败的信息
+  + Validator工具类： ValidationUtils，用于简化重复性的校验操作
 
-##### Errors
+​	Validator是面向编程方式的校验器，需要自己根据业务需求去编写校验逻辑，比较繁琐，对于很多常见的判断，我们更倾向于使用声明式的校验方式。
+
+​	Validator一般来说是针对某一个Bean或某个类的对象进行校验，调用Validator#validate对Bean进行校验前，还需要调用Validator#supports去判断是否支持当前Bean的校验，反而使使用场景变狭隘了。
+
+#### Errors
+
+```java
+public interface Errors {
+    // 获取绑定的校验Bean name
+    String getObjectName();
+    // 注册Bean校验错误
+    void reject(String errorCode, @Nullable Object[] errorArgs, @Nullable String defaultMessage);
+    // 注册Bean字段校验错误
+    void rejectValue(@Nullable String field, String errorCode,
+			@Nullable Object[] errorArgs, @Nullable String defaultMessage);
+    // 获取所有的Bean校验错误信息
+    List<ObjectError> getGlobalErrors();
+    // 获取所有的Bean字段校验错误信息
+    List<FieldError> getFieldErrors();
+    // 获取所有的Bean校验错误信息和Bean字段校验错误信息
+    List<ObjectError> getAllErrors();
+}
+```
+
++ 接口职责
+  + 用于组织和存储校验失败的信息
++ 核心方法
+  + reject：用来生成和存储Bean校验失败相关的信息，使用ObjectError存储
+  + rejectValue：用来生成和存储Bean Field校验失败的相关信息，使用FieldError存储
+
+​	使用Validator校验Bean时，一般需要我们将Errors创建出来，而Errors的实现有很多种，使用的时候反而变得复杂了。
+
+##### ObjectError
+
+```java
+public class ObjectError extends DefaultMessageSourceResolvable {
+	// 校验Bean的name
+	private final String objectName;
+	// 校验Bean
+	@Nullable
+	private transient Object source;
+    
+    ...
+}
+```
+
+```java
+public class DefaultMessageSourceResolvable implements MessageSourceResolvable, Serializable {
+
+	@Nullable
+	private final String[] codes;
+
+	@Nullable
+	private final Object[] arguments;
+
+	@Nullable
+	private final String defaultMessage;
+    
+    ...
+}
+```
+
+
+
+​	存储Bean校验失败的相关信息，如Bean不能为null。ObjectError继承于MessageSourceResolvable，包含codes、arguments和defaultMessage与国际化文案相关的属性，用于结合MessageSource获取校验失败时的国际化文案。并且添加了objectName和source，用于绑定校验Bean。
+
+​	通过Errors#getGlobalErrors获取Bean校验失败时所有Bean相关的ObjectError。
+
+##### FieldError
+
+```java
+public class FieldError extends ObjectError {
+	// 校验失败的属性
+	private final String field;
+
+    // 校验失败的属性值
+	@Nullable
+	private final Object rejectedValue;
+    
+    ...
+}
+```
+
+
+
+​	存储Bean 属性校验失败的相关信息，如属性不能为null。FieldError继承于ObjectError，并添加了field和rejectedValue，用于定位具体的校验属性以及存储属性校验失败时的值。
+
+​	通过Errors#getFieldErrors获取Bean校验失败时所有属性相关的FieldError。
+
+#### 自定义Validator
+
++ 实现Validator接口
+  + 实现supports方法
+  + 实现validate方法
+    + 通过Errors对象收集错误信息
+      + ObjectError：对象错误信息
+      + FieldError：对象属性错误信息
+    + 通过ObjectError和Field关联Message获取校验失败的文案
+
+```
+// 1. 实现并创建Validator
+// 2. 创建校验Bean
+// 3. 调用Validator#supports和Validator#validate进行校验
+// 4. 创建Errors对象
+// 5. 获取ObjectError和FieldError
+Errors#getAllErrors()
+// 6. 获取MessageSource对象
+// 7. 通过ObjectError和FieldError中的codes、arguments和defaultMessage结合MessageSource获取文案
+```
+
+​	Spring Framewor对Bean校验时会使用Validator对特定Bean进行校验，为了减少重复的校验操作，Spring Framewor提供了ValidationUtils简化操作；Validator校验出来的错误信息会存储到Errors中，Errors会包含ObjectError或FieldError，两者都包含code和args，结合MessageSource得到错误文案。
 
 ### 数据绑定
 
