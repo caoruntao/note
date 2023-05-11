@@ -3187,6 +3187,181 @@ Errors#getAllErrors()
 
 ​	Spring Framewor对Bean校验时会使用Validator对特定Bean进行校验，为了减少重复的校验操作，Spring Framewor提供了ValidationUtils简化操作；Validator校验出来的错误信息会存储到Errors中，Errors会包含ObjectError或FieldError，两者都包含code和args，结合MessageSource得到错误文案。
 
+#### Spring整合Bean Validation
+
+​	基于Spring Validator使用的复杂性，Spring 团队整合Bean Validation(JSR-303)对Validator进行“救赎”。
+
+```java
+public interface SmartValidator extends Validator {
+    void validate(Object target, Errors errors, Object... validationHints);
+
+	default void validateValue(
+			Class<?> targetType, String fieldName, @Nullable Object value, Errors errors, Object... validationHints) {
+
+		throw new IllegalArgumentException("Cannot validate individual value for " + targetType);
+	}
+}
+```
+
+```java
+public class SpringValidatorAdapter implements SmartValidator, javax.validation.Validator {
+	@Nullable
+	private javax.validation.Validator targetValidator;
+    // 只要存在Bean Validation的验证器，就支持校验
+    @Override
+	public boolean supports(Class<?> clazz) {
+		return (this.targetValidator != null);
+	}
+    // 使用Bean Validation验证器进行校验
+    @Override
+	public void validate(Object target, Errors errors) {
+		if (this.targetValidator != null) {
+			processConstraintViolations(this.targetValidator.validate(target), errors);
+		}
+	}
+    
+    @Override
+	public void validateValue(
+			Class<?> targetType, String fieldName, @Nullable Object value, Errors errors, Object... validationHints) {
+
+		if (this.targetValidator != null) {
+			processConstraintViolations(this.targetValidator.validateValue(
+					(Class) targetType, fieldName, value, asValidationGroups(validationHints)), errors);
+		}
+	}
+	// 将JSR-303 ConstraintViolation的信息添加到Spring Errors对象中。
+    protected void processConstraintViolations(Set<ConstraintViolation<Object>> violations, Errors errors) {
+        ...
+    }
+}
+```
+
+```java
+// Since:3.0
+public class LocalValidatorFactoryBean extends SpringValidatorAdapter
+		implements ValidatorFactory, ApplicationContextAware, InitializingBean, DisposableBean {
+    @Override
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	public void afterPropertiesSet() {
+		...
+		// 设置Bean Validation验证器
+		setTargetValidator(this.validatorFactory.getValidator());
+		...
+	}
+    
+    @Override
+	public Validator getValidator() {
+		Assert.notNull(this.validatorFactory, "No target ValidatorFactory set");
+		return this.validatorFactory.getValidator();
+	}
+}
+```
+
+​	SpringValidatorAdapter负责整合Bean Validation，LocalValidatorFactoryBean提供Bean Validation相关的Validator(Bean Validation由Hibernate Validator支持)。并且SpringValidatorAdapter还会将Bean Validation的ConstraintViolation的信息添加到Spring Errors中，以供结合MessageSource获取文案。
+
+```JAVA
+// since 3.1
+public class MethodValidationPostProcessor extends AbstractBeanFactoryAwareAdvisingPostProcessor
+		implements InitializingBean {
+
+	private Class<? extends Annotation> validatedAnnotationType = Validated.class;
+    
+    @Nullable
+	private Validator validator;
+    
+    @Override
+	public void afterPropertiesSet() {
+		Pointcut pointcut = new AnnotationMatchingPointcut(this.validatedAnnotationType, true);
+		this.advisor = new DefaultPointcutAdvisor(pointcut, createMethodValidationAdvice(this.validator));
+	}
+    
+    protected Advice createMethodValidationAdvice(@Nullable Validator validator) {
+		return (validator != null ? new MethodValidationInterceptor(validator) : new MethodValidationInterceptor());
+	}
+    
+    @Override
+	public Object postProcessAfterInitialization(Object bean, String beanName) {
+		...
+		if (isEligible(bean, beanName)) {
+			ProxyFactory proxyFactory = prepareProxyFactory(bean, beanName);
+			if (!proxyFactory.isProxyTargetClass()) {
+				evaluateProxyInterfaces(bean.getClass(), proxyFactory);
+			}
+			proxyFactory.addAdvisor(this.advisor);
+			customizeProxyFactory(proxyFactory);
+
+			// Use original ClassLoader if bean class not locally loaded in overriding class loader
+			ClassLoader classLoader = getProxyClassLoader();
+			if (classLoader instanceof SmartClassLoader && classLoader != bean.getClass().getClassLoader()) {
+				classLoader = ((SmartClassLoader) classLoader).getOriginalClassLoader();
+			}
+			return proxyFactory.getProxy(classLoader);
+		}
+
+		// No proxy needed.
+		return bean;
+	}
+}
+```
+
+​	MethodValidationPostProcessor以AOP的方式进行Bean Validation处理，MethodValidationPostProcessor会生成Advisor，用于拦截标记Validated的类(AnnotationMatchingPointcut)，并使用MethodValidationInterceptor对执行的方法进行拦截处理。MethodValidationPostProcessor继承于BeanPostProcessor，在postProcessAfterInitialization方法中，根据Pointcut筛选候选者，然后为候选者生成代理对象。
+
+```JAVA
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnClass(ExecutableValidator.class)
+@ConditionalOnResource(resources = "classpath:META-INF/services/javax.validation.spi.ValidationProvider")
+@Import(PrimaryDefaultValidatorPostProcessor.class)
+public class ValidationAutoConfiguration {
+
+	@Bean
+	@Role(BeanDefinition.ROLE_INFRASTRUCTURE)
+	@ConditionalOnMissingBean(Validator.class)
+	public static LocalValidatorFactoryBean defaultValidator() {
+		LocalValidatorFactoryBean factoryBean = new LocalValidatorFactoryBean();
+		MessageInterpolatorFactory interpolatorFactory = new MessageInterpolatorFactory();
+		factoryBean.setMessageInterpolator(interpolatorFactory.getObject());
+		return factoryBean;
+	}
+
+	@Bean
+	@ConditionalOnMissingBean
+	public static MethodValidationPostProcessor methodValidationPostProcessor(Environment environment,
+			@Lazy Validator validator, ObjectProvider<MethodValidationExcludeFilter> excludeFilters) {
+		FilteredMethodValidationPostProcessor processor = new FilteredMethodValidationPostProcessor(
+				excludeFilters.orderedStream());
+		boolean proxyTargetClass = environment.getProperty("spring.aop.proxy-target-class", Boolean.class, true);
+		processor.setProxyTargetClass(proxyTargetClass);
+		processor.setValidator(validator);
+		return processor;
+	}
+
+}
+```
+
+
+
+​	在Spring Boot中，ValidationAutoConfiguration会自动装配LocalValidatorFactoryBean和MethodValidationPostProcessor。
+
+##### 面试题
+
+1. Spring 校验接口是哪个
+
+​		Validator
+
+ 2. Spring有哪些校验核心组件
+
+    Validator
+
+    Errors
+
+    ObjectError
+
+    FieldError
+
+    LocalValidationFactoryBean
+
+ 3. 演示Spring Bean的校验
+
 ### 数据绑定
 
 ### 类型转换
