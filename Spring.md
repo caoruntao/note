@@ -3364,6 +3364,86 @@ public class ValidationAutoConfiguration {
 
 ### 数据绑定
 
+#### 使用场景
+
++ Spring BeanDefinition 到 Bean实例创建
++ Spring 数据绑定(DataBinder)
++ Spring Web 参数绑定(WebDataBinder)
+
+#### DataBinder
+
++ 标准组件
+  + DataBinder
++ Web 组件
+  + WebDataBinder
+  + ServletRequestDataBinder
+  + WebRequestDataBinder
+  + WebExchangeDataBinder
+
+```java
+public class DataBinder implements PropertyEditorRegistry, TypeConverter {
+    // 数据绑定的目标Bean
+    @Nullable
+	private final Object target;
+    // 目标Bean名称
+	private final String objectName;
+    // 绑定结果
+    @Nullable
+	private AbstractPropertyBindingResult bindingResult;
+    // 类型转换
+    @Nullable
+	private SimpleTypeConverter typeConverter;
+    // Spring 新版本类型转换
+    @Nullable
+	private ConversionService conversionService;
+    // 国际化文案相关
+    @Nullable
+	private MessageCodesResolver messageCodesResolver;
+    // 验证器。如果有嵌套属性，可能嵌套属性需要其他验证器，因此会有多个
+    private final List<Validator> validators = new ArrayList<>();
+    
+    // 控制数据绑定的一些行为参数
+    // 忽略未知字段
+    private boolean ignoreUnknownFields = true;
+	// 忽略无效字段
+	private boolean ignoreInvalidFields = false;
+	// 允许字段创建嵌套路径。如x.y，设置y时会自动创建x
+	private boolean autoGrowNestedPaths = true;
+    // 允许绑定的字段
+    @Nullable
+	private String[] allowedFields;
+	// 不允许绑定的字段
+	@Nullable
+	private String[] disallowedFields;
+	// 必须绑定的字段
+	@Nullable
+	private String[] requiredFields;
+    // 进行Bean 数据绑定
+    public void bind(PropertyValues pvs) {
+		MutablePropertyValues mpvs = (pvs instanceof MutablePropertyValues ?
+				(MutablePropertyValues) pvs : new MutablePropertyValues(pvs));
+		doBind(mpvs);
+	}
+}
+```
+
+​	DataBinder包含目标Bean，负责将PropertyValues绑定到Bean上，其中还涉及到类型绑定和数据校验。
+
+​	DataBinder还包括一些控制数据绑定过程中的行为的参数、如忽略未知字段、忽略无效字段、允许字段创建嵌套路径等。
+
+#### PropertyValues
+
+| 特征             | 说明                                                         |
+| ---------------- | ------------------------------------------------------------ |
+| 数据来源         | BeanDefinition，主要来源于XML资源                            |
+| 数据结构         | 由一个或多个PropertyValue组成                                |
+| 成员结构         | PropertyValue包含属性名称，以及属性值（原始值和转换后的值）  |
+| 常见实现         | MultablePropertyValues                                       |
+| Web扩展          | ServletConfigPropertyValues、ServletRequestParameterPropertyValues |
+| 相关生命周期处理 | InstantiationAwareBeanPostProcessor#postProcessProperties    |
+
+
+
 ### 类型转换
 
 ### 泛型处理
