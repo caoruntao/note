@@ -3107,7 +3107,51 @@ public interface Errors {
 
 ​	使用Validator校验Bean时，一般需要我们将Errors创建出来，而Errors的实现有很多种，使用的时候反而变得复杂了。
 
-##### ObjectError
+##### BindingResult
+
+```java
+public interface BindingResult extends Errors {
+    // 绑定的目标对象
+    @Nullable
+	Object getTarget();
+    // 类型转换
+    @Nullable
+	PropertyEditorRegistry getPropertyEditorRegistry();
+    // MessageCodesResolver的能力
+    String[] resolveMessageCodes(String errorCode);
+    void addError(ObjectError error);
+}
+```
+
+
+
+##### BeanPropertyBindingResult
+
+```java
+/**
+ * Default implementation of the {@link Errors} and {@link BindingResult}
+ * interfaces, for the registration and evaluation of binding errors on
+ * JavaBean objects.
+ *
+ * <p>Performs standard JavaBean property access, also supporting nested
+ * properties. Normally, application code will work with the
+ * {@code Errors} interface or the {@code BindingResult} interface.
+ * A {@link DataBinder} returns its {@code BindingResult} via
+ * {@link DataBinder#getBindingResult()}.
+ */
+public class BeanPropertyBindingResult extends AbstractPropertyBindingResult implements Serializable {
+    // JavaBean
+	@Nullable
+	private final Object target;
+    // PropertyAccessor
+    @Nullable
+	private transient BeanWrapper beanWrapper;
+}
+```
+
+
+
+#### ObjectError
 
 ```java
 public class ObjectError extends DefaultMessageSourceResolvable {
@@ -3139,7 +3183,7 @@ public class DefaultMessageSourceResolvable implements MessageSourceResolvable, 
 
 
 
-​	存储Bean校验失败的相关信息，如Bean不能为null。ObjectError继承于MessageSourceResolvable，包含codes、arguments和defaultMessage与国际化文案相关的属性，用于结合MessageSource获取校验失败时的国际化文案。并且添加了objectName和source，用于绑定校验Bean。
+​	存储Bean校验失败的相关信息，如Bean不能为null。ObjectError继承于MessageSourceResolvable，包含codes、arguments和defaultMessage与国际化文案相关的属性，用于结合MessageSource# getMessage(MessageSourceResolvable resolvable, Locale locale)获取校验失败时的国际化文案。并且添加了objectName和source，用于绑定校验Bean。
 
 ​	通过Errors#getGlobalErrors获取Bean校验失败时所有Bean相关的ObjectError。
 
@@ -3442,7 +3486,86 @@ public class DataBinder implements PropertyEditorRegistry, TypeConverter {
 | Web扩展          | ServletConfigPropertyValues、ServletRequestParameterPropertyValues |
 | 相关生命周期处理 | InstantiationAwareBeanPostProcessor#postProcessProperties    |
 
+#### JavaBeans替换实现 - BeanWrapper
 
++ JavaBeans - BeanInfo
+  + 属性(Property)
+    + PropertyEditor
+  + 方法(Method)
+  + 事件(Event)
+  + 表达式(Expression)
++ Spring替换实现 - BeanWrapper
+  + 属性(Property)
+    + PropertyEditor
+  + 嵌套属性(nested path)
+
+​	BeanWrapper相比于BeanInfo，去掉了方法、事件、表达式，添加了嵌套属性，更加精简了。
+
+#### JavaBeans
+
+| API                           | 说明                                                         |
+| ----------------------------- | ------------------------------------------------------------ |
+| java.beans.Introspector       | Java Beans 内省API                                           |
+| java.beans.BeanInfo           | Java Bean 元信息API，通过Introspector#getBeanInfo()获得J     |
+| java.beans.BeanDescriptor     | Java Bean 信息描述符，通过BeanInfo#getBeanDescriptor获得     |
+| java.beans.PropertyDescriptor | Java Bean 属性描述符，通过BeanInfo#getPropertyDescriptors获得 |
+| java.beans.MethodDescriptor   | Java Bean 方法描述符，通过BeanInfo#getMethodDescriptors获得  |
+| java.beans.EventSetDescriptor | Java Bean 事件集合描述符，通过BeanInfo#getEventSetDescriptors获得 |
+
+​	Java语言提供的API集合。
+
+#### BeanWrapper
+
++ Spring 底层 JavaBeans 基础设施的中心化接口
++ 通常不直接使用，间接用于BeanFactory和DataBinder
++ 提供标准 JavaBeans分析和操作，能够单独或批量存储Java Bean属性(properties)
++ 支持嵌套属性路径(nested path)
++ 实现类 BeanWrapperImpl
+
+####  DataBinder 数据校验
+
++ DataBinder 与 BeanWrapper
+  + bind方法生成BeanPropertyBindingResult
+  + BeanPropertyBindingResult关键BeanWrapper(PropertyAccessor)
+
+```java
+org.springframework.validation.DataBinder#bind(PropertyValues)
+	#doBind(MutablePropertyValues)
+		#applyPropertyValues(MutablePropertyValues)
+			#getPropertyAccessor
+				#getInternalBindingResult
+					#createBeanPropertyBindingResult：创建BeanPropertyBindingResult
+					AbstractPropertyBindingResult#getPropertyAccessor
+						#createBeanWrapper：创建BeanWrapper(is PropertyAccessor)
+							PropertyAccessorFactory#forBeanPropertyAccess
+			BeanWrapper#setPropertyValues(MutablePropertyValues)
+				#setPropertyValue(PropertyValue)
+					AbstractNestablePropertyAccessor#setPropertyValue
+						#processLocalProperty
+							BeanPropertyHandler#setValue
+								java.beans.PropertyDescriptor#getWriteMethod
+									java.lang.reflect.Method#invoke
+```
+
+​	Spring Bean创建时数据绑定
+
+```
+org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory#populateBean
+	#applyPropertyValues
+		BeanWrapper#setPropertyValues
+```
+
+#### 面试题
+
+1. Spring 数据绑定API是什么
+
+   DataBinder，细节相关API有BeanPropertyBindingResult和BeanWrapper。
+
+2. BeanWrapper与JavaBeans的关系
+
+   BeanWrapper是Spring 底层 JavaBeans基础设置的中心化接口，是JavaBeans的包装。
+
+3. DataBinder是怎么完成类型转换的
 
 ### 类型转换
 
