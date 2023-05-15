@@ -3569,6 +3569,98 @@ org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory#pop
 
 ### 类型转换
 
+​	在Spring 3之前，使用基于JavaBeans的PropertyEditor来完成类型转换。Spring 3之后，使用ConvesionService通用类型转换来完成类型转换。
+
+#### 使用场景
+
+| 场景               | PropertyEditor | ConvesionService |
+| ------------------ | -------------- | ---------------- |
+| 数据绑定           | YES            | YES              |
+| BeanWrapper        | YES            | YES              |
+| Bean 属性类型转换  | YES            | YES              |
+| 外部化属性类型转换 | NO             | YES              |
+
+#### PropertyEditor
+
+```java
+// 将String类型转换为目标类型
+public interface PropertyEditor {
+    // 设置目标类型的值
+    void setValue(Object value);
+    // 获取目标类型的值
+    Object getValue();
+    // 获取String类型的值
+    String getAsText();
+    // 设置String类型的值
+    void setAsText(String text) throws java.lang.IllegalArgumentException;
+}
+```
+
+##### 基于PropertyEditor的类型转换
+
+​	继承PropertyEditor接口的支持类PropertyEditorSupport，实现setAsText和getAsText方法。如自定义String到Properties的类型转换：
+
+```JAVA
+public class StringToPropertiesPropertyEditor extends PropertyEditorSupport {
+    @Override
+    public String getAsText() {
+        Properties properties = (Properties)getValue();
+        return properties.toString();
+    }
+
+    @Override
+    public void setAsText(String text) throws IllegalArgumentException {
+        Properties properties = new Properties();
+
+        try (StringReader reader = new StringReader(text)){
+            properties.load(reader);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        setValue(properties);
+    }
+}
+```
+
+##### Spring内建实现
+
+​	Spring Framework中PropertyEditor内建实现位于包org.springframework.beans.propertyeditors，有ByteArrayPropertyEditor、CharArrayPropertyEditor、InputSourceEditor等。
+
+##### 在Spring添加自定义PropertyEditor
+
+###### PropertyEditorRegistrar
+
+​	实现PropertyEditorRegistrar接口，并将PropertyEditorRegistrar注册到Spring容器中。
+
+```java
+public interface PropertyEditorRegistrar {
+	void registerCustomEditors(PropertyEditorRegistry registry);
+}
+```
+
+###### PropertyEditorRegistry
+
+​	向PropertyEditorRegistry注册自定义PropertyEditor实现。
+
+```java
+public interface PropertyEditorRegistry {
+	// 注册为通用类型的类型转换
+	void registerCustomEditor(Class<?> requiredType, PropertyEditor propertyEditor);
+	// 注册为针对通用类型以及指定的属性路径的类型转换
+	void registerCustomEditor(@Nullable Class<?> requiredType, @Nullable String propertyPath, PropertyEditor propertyEditor);
+
+	@Nullable
+	PropertyEditor findCustomEditor(@Nullable Class<?> requiredType, @Nullable String propertyPath);
+
+}
+```
+
+##### 设计缺陷
+
++ 违反职责单一原则。PropertyEdito除了类型转换，还包括Java Beans事件和Java GUI交互
++ 实现类型局限。来源类型只能为String类型
++ 缺少类型安全。获取的目标类型为Object，需要强转才能使用，而且仅能通过实现类命名表达语义，缺少强关联
+
 ### 泛型处理
 
 ### 事件
