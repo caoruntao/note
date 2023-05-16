@@ -3661,6 +3661,76 @@ public interface PropertyEditorRegistry {
 + 实现类型局限。来源类型只能为String类型
 + 缺少类型安全。获取的目标类型为Object，需要强转才能使用，而且仅能通过实现类命名表达语义，缺少强关联
 
+#### Convert
+
+```java
+public interface Converter<S, T> {
+	@Nullable
+	T convert(S source);
+}
+```
+
+​	Spring基于PropertyEditor的设计缺陷，设计出了Convert接口。
+
++ 首先，该接口仅提供了一个convert方法用于类型转换，符合职责单一原则
++ 其次， Converter<S, T>提供了两种泛型，S代表source，T代表target，T convert(S source)将S类型转换为T类型，这样来源类型就不仅仅限定于String类型
++ 最后，因为泛型的原因，也保证了目标类型为强类型，省去了强转，也保证了类型安全。
+
+##### 内建实现
+
+| 转换场景            | 实现类所在包名                               |
+| ------------------- | -------------------------------------------- |
+| 日期/时间相关       | org.springframework.format.datetime          |
+| Java8 日期/时间相关 | org.springframework.format.datetime.standard |
+| 通用实现            | org.springframework.core.convert.support     |
+
+##### 局限性	
+
+	+	Convert没有前置判断接口，无法判断能否转换传入的来源类型和目标类型。当有很多Convert时，不可能说一个一个取出类型去匹配。
+	+	Convert虽然是基于泛型进行类型转换的，但是泛型因为擦写的原因，对集合类型不太友好，如数组类型、Collection、Map等类型。当Convert中的S为Collection\<String>这种集合类型时，因为泛型擦写，Collection中的成员类型String在处理过程中就不可知了。
+
+##### ConditionalConverter
+
+````java
+public interface ConditionalConverter {
+    
+	boolean matches(TypeDescriptor sourceType, TypeDescriptor targetType);
+
+}
+````
+
+​	ConditionalConverter是前置判断接口，用于判断传入的来源类型和目标类型是否能够转换，参数使用TypeDescriptor，而非泛型，是因为TypeDescriptor可以更好的描述类型，如原生类型、复合类型等。
+
+​	如果想要实现一个具有前置判断的转换器，需要同时实现ConditionalConverter和Converter接口。
+
+##### GenericConverter
+
+```java
+public interface GenericConverter {
+
+	@Nullable
+	Set<ConvertiblePair> getConvertibleTypes();
+
+	@Nullable
+	Object convert(@Nullable Object source, TypeDescriptor sourceType, TypeDescriptor targetType);
+}
+```
+
+​	对于集合类型，Spring提供了GenericConverter接口，其中convert方法使用TypeDescriptor来描述类型，可以明确得知集合类型和集合中的成员类型。getConvertibleTypes表示GenericConverter可以转换多种类型。
+
+​	对于集合类型转换，GenericConverter还是使用Convert来对成员类型进行转换。
+
+##### ConditionalGenericConverter
+
+```java
+public interface ConditionalGenericConverter extends GenericConverter, ConditionalConverter {
+
+}
+
+```
+
+​	集成了转换接口和前置判断接口。
+
 ### 泛型处理
 
 ### 事件
