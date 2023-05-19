@@ -3724,12 +3724,67 @@ public interface GenericConverter {
 
 ```java
 public interface ConditionalGenericConverter extends GenericConverter, ConditionalConverter {
-
 }
 
 ```
 
 ​	集成了转换接口和前置判断接口。
+
+##### 扩展Converter
+
++ 实现转换器接口
+  + Converter
+  + GenericConverter
+  + ConverterFactory
++ 注册转换器实现
+  + ConversionServiceFactory
+  + ConversionService(名称为ConfigurableApplicationContext#CONVERSION_SERVICE_BEAN_NAME)
+
+##### ConversionService
+
+​	使用Converter和GenericConverter统一对外提供转换服务。
+
+```java
+public interface ConversionService {
+	boolean canConvert(@Nullable Class<?> sourceType, Class<?> targetType);
+
+	boolean canConvert(@Nullable TypeDescriptor sourceType, TypeDescriptor targetType);
+	@Nullable
+	<T> T convert(@Nullable Object source, Class<T> targetType);
+
+	@Nullable
+	Object convert(@Nullable Object source, @Nullable TypeDescriptor sourceType, TypeDescriptor targetType);
+
+}
+```
+
+​	ConversionService对外提供转换服务。
+
+```java
+public interface ConfigurableConversionService extends ConversionService, ConverterRegistry {
+
+}
+```
+
+​	ConfigurableConversionService同时继承ConversionService和ConverterRegistry，ConverterRegistry用于注册Converter和GenericConverter。
+
+```java
+public class GenericConversionService implements ConfigurableConversionService {
+...
+}
+```
+
+​	GenericConversionService实现了ConversionService大部分抽象方法，但是没有注册底层Converter和GenericConverter。
+
+```java
+public class DefaultConversionService extends GenericConversionService {
+...
+}
+```
+
+​	DefaultConversionService注册了许多底层Converter和GenericConverter，基本满足转换需求。
+
+
 
 ### 泛型处理
 
