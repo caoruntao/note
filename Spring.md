@@ -3784,7 +3784,180 @@ public class DefaultConversionService extends GenericConversionService {
 
 ​	DefaultConversionService注册了许多底层Converter和GenericConverter，基本满足转换需求。
 
+#### TypeConvert
 
+​	Bean类型转换的底层接口是TypeConvert。
+
+```java
+public interface TypeConverter {
+
+	@Nullable
+	<T> T convertIfNecessary(@Nullable Object value, @Nullable Class<T> requiredType) throws TypeMismatchException;
+
+	@Nullable
+	<T> T convertIfNecessary(@Nullable Object value, @Nullable Class<T> requiredType,
+			@Nullable MethodParameter methodParam) throws TypeMismatchException;
+
+	@Nullable
+	<T> T convertIfNecessary(@Nullable Object value, @Nullable Class<T> requiredType, @Nullable Field field)
+			throws TypeMismatchException;
+
+	@Nullable
+	default <T> T convertIfNecessary(@Nullable Object value, @Nullable Class<T> requiredType,
+			@Nullable TypeDescriptor typeDescriptor) throws TypeMismatchException {
+
+		throw new UnsupportedOperationException("TypeDescriptor resolution not supported");
+	}
+
+}
+```
+
+​	convertIfNecessary方法会将需要类型转换的值进行类型转换。
+
+```java
+
+public abstract class TypeConverterSupport extends PropertyEditorRegistrySupport implements TypeConverter {
+	@Nullable
+	TypeConverterDelegate typeConverterDelegate;
+	
+	...
+}
+```
+
+​	TypeConverterSupport实现了TypeConverter，但是具体的类型转换处理委托给TypeConverterDelegate。并且继承了PropertyEditorRegistrySupport，PropertyEditorRegistrySupport具有注册PropertyEditor的功能，并且还关联了一个ConversionService，使用Converter和GenericConverter统一对外提供转换服务。
+
+```java
+public abstract class AbstractPropertyAccessor extends TypeConverterSupport implements ConfigurablePropertyAccessor {
+    ...
+}
+```
+
+​	AbstractPropertyAccessor提供了访问PropertyValue的功能，可以进行PropertyValue设置。
+
+```java
+public abstract class AbstractNestablePropertyAccessor extends AbstractPropertyAccessor {	protected AbstractNestablePropertyAccessor(boolean registerDefaultEditors) {
+		if (registerDefaultEditors) {
+			registerDefaultEditors();
+		}
+		this.typeConverterDelegate = new TypeConverterDelegate(this);
+	}
+                                                                                            protected AbstractNestablePropertyAccessor(Object object) {
+		registerDefaultEditors();
+		setWrappedInstance(object);
+	}
+                                                                                            public void setWrappedInstance(Object object) {
+		setWrappedInstance(object, "", null);
+	}
+                                                                                            public void setWrappedInstance(Object object, @Nullable String nestedPath, @Nullable Object rootObject) {
+		this.wrappedObject = ObjectUtils.unwrapOptional(object);
+		Assert.notNull(this.wrappedObject, "Target object must not be null");
+		this.nestedPath = (nestedPath != null ? nestedPath : "");
+		this.rootObject = (!this.nestedPath.isEmpty() ? rootObject : this.wrappedObject);
+		this.nestedPropertyAccessors = null;
+		this.typeConverterDelegate = new TypeConverterDelegate(this, this.wrappedObject);
+	}
+                                                                                         	...
+}
+```
+
+​	AbstractNestablePropertyAccessor提供了嵌套路径的PropertyValue处理，并且提供了注册默认PropertyEditor，以及创建TypeConverterDelegate实现。
+
+```java
+class TypeConverterDelegate {
+	private final PropertyEditorRegistrySupport propertyEditorRegistry;
+	// 目标Bean
+	@Nullable
+	private final Object targetObject;
+    
+    public TypeConverterDelegate(PropertyEditorRegistrySupport propertyEditorRegistry, @Nullable Object targetObject) {
+		this.propertyEditorRegistry = propertyEditorRegistry;
+		this.targetObject = targetObject;
+	}
+    
+    public <T> T convertIfNecessary(@Nullable String propertyName, @Nullable Object oldValue, @Nullable Object newValue,
+			@Nullable Class<T> requiredType, @Nullable TypeDescriptor typeDescriptor) throws IllegalArgumentException {
+        // 1. 寻找自定义的PropertyEditor
+        // 2. 获取绑定的ConversionService(PropertyEditorRegistrySupport#getConversionService)，如果不为null并且可以转换，则进行类型转换
+		// 3. 如果自定义PropertyEditor不存在，且ConversionService可以进行类型转换，则使用ConversionService
+        // 4. 如果没使用ConversionService进行类型转换，则使用自定义的PropertyEditor/默认的PropertyEditor进行转换
+        // 默认的PropertyEditor在AbstractNestablePropertyAccessor提供注册，如果注册，则从PropertyEditorRegistrySupport#getDefaultEditor获取
+        // 5. 如果需要转换为集合类型，则需要另外的处理，因为PropertyEditor不支持对集合中的成员进行类型转换
+		...
+}
+```
+
+```java
+public class BeanWrapperImpl extends AbstractNestablePropertyAccessor implements BeanWrapper {
+    public BeanWrapperImpl(Object object) {
+		super(object);
+	}
+    
+    ...
+}
+```
+
+BeanWrapper创建过程
+
+```java
+BeanWrapper bw = new BeanWrapperImpl(beanInstance);
+initBeanWrapper(bw);
+```
+
+```java
+protected void initBeanWrapper(BeanWrapper bw) {
+		bw.setConversionService(getConversionService());
+		registerCustomEditors(bw);
+}
+```
+
+```java
+protected void registerCustomEditors(PropertyEditorRegistry registry) {
+		if (registry instanceof PropertyEditorRegistrySupport) {
+			((PropertyEditorRegistrySupport) registry).useConfigValueEditors();
+		}
+		if (!this.propertyEditorRegistrars.isEmpty()) {
+			for (PropertyEditorRegistrar registrar : this.propertyEditorRegistrars) {
+				try {
+					registrar.registerCustomEditors(registry);
+				}
+				catch (BeanCreationException ex) {
+					...
+				}
+			}
+		}
+		if (!this.customEditors.isEmpty()) {
+			this.customEditors.forEach((requiredType, editorClass) ->
+					registry.registerCustomEditor(requiredType, BeanUtils.instantiateClass(editorClass)));
+		}
+	}
+```
+
+​	BeanWrapperImpl在创建时
+
++ 会注册默认PropertyEditor，后续会通过PropertyEditorRegistrySupport#getDefaultEditor会获取默认注册的PropertyEditor
++ 会创建一个TypeConverterDelegate，并以自身作为PropertyEditorRegistrySupport绑定到TypeConverterDelegate
+
+​	在initBeanWrapper时
+
+ +	getConversionService()会将AbstractBeanFactory#conversionService绑定到BeanWrapperImpl
+   +	AbstractBeanFactory#conversionService在ApplicationContext启动时，通过查找BeanFactory中名称为ConfigurableApplicationContext#CONVERSION_SERVICE_BEAN_NAME，类型为ConversionService绑定(AbstractApplicationContext#finishBeanFactoryInitialization方法)
+ +	registerCustomEditors会调用
+   +	PropertyEditorRegistrar的实例集合去添加自定义PropertyEditor(通过CustomEditorConfigurer注册)，或者手动注册
+   +	AbstractBeanFactory之前绑定的PropertyEditor注册(通过CustomEditorConfigurer注册
+
+#### 面试题
+
+1.  Spring类型转换实现有哪些
+
+   Spring 3.0之前时PropertyEditor，3.0之后是Converter相关接口
+
+2.  Spring类型转换接口有哪些
+
+   Converter、ConditionalConverter、GenericConverter、ConditionalGenericConverter
+
+   ConvertsionService
+
+3. TypeDesriptor是如何处理泛型的
 
 ### 泛型处理
 
