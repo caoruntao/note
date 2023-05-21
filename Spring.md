@@ -3961,6 +3961,141 @@ protected void registerCustomEditors(PropertyEditorRegistry registry) {
 
 ### 泛型处理
 
+#### 泛型
+
+​	泛型类型
+
+ +	泛型类型是在类型上参数化的泛型类或接口
+
+​	泛型使用场景
+
+	+	编译时强类型检查
+	+	避免类型强转
+	+	实现通用算法
+
+#### 泛型类型擦写
+
+​	泛型被引入到Java语言中，以便在编译时提供更严格的类型检查并支持泛型编程。泛型处理由编译器在编译时对类型进行强类型检查，并且擦除泛型信息，以及添加类型转换。因此泛型参数信息在编译期是存在的，因为编译器擦写，所以在运行期不存在。
+
+​	Java之所以选择类型擦写(一种编译器优化)，而非生成新类型(c++/c#)来实现泛型，是为了兼容Java5之前的字节码。为了实现泛型，编译器将类型擦除应用于
+
+	+	将泛型类型中的所有类型参数替换为其边界，如果类型参数是无边界的，则替换为Object。因此，生成的字节码只包含普通类、接口和方法(泛型中参数话类型不支持继承，这也是泛型出现的原因，就是为了解决类型转换的问题)
+	+	必要时插入类型转换以保证类型安全
+	+	生成桥方法以保留扩展泛型类型中的多态性(因为类型擦写的原因，泛型不支持重写以实现多态，只能变为重载。这样，类型擦除就和多态有了冲突，JVM采用桥方法来解决冲突)
+
+​	泛型擦写虽然导致字节码中没有具体化泛型参数(使用测)，但是声明侧泛型参数信息会被class文件 以Signature的形式 保留在Class文件的Constant pool中。
+
+​	声明侧泛型
+
+ +	泛型类或泛型接口的声明，通过Class#getGenericInfo获取泛型信息
+ +	带有泛型参数的成员变量，java.lang.reflect.Method#getGenericInfo
+ +	带有泛型参数的方法，java.lang.reflect.Field#getGenericInfo
+
+​	使用测泛型
+
++ 方法的局部变量
++ 方法调用时传入的变量
+
+#### Type
+
+##### Java 5 类型接口 - java.lang.reflect.Type
+
+| 派生类或接口     | 说明                                                         |
+| ---------------- | ------------------------------------------------------------ |
+| Class            | Java类API                                                    |
+| GenericArrayType | 泛型数组类型                                                 |
+| ParamterizedType | 泛型参数类型，带泛型参数的类型，如Collection<E\>的Collection |
+| TypeValiriable   | 泛型类型变量，泛型的具体类型，如Collection<E\>的E            |
+| WildcardType     | 泛型通配类型                                                 |
+
+##### Java 泛型反射API
+
+| 类型                           | API                                  |
+| ------------------------------ | ------------------------------------ |
+| 泛型信息(Generics Info)        | java.lang.Class#getGenericInfo       |
+| 泛型参数(Parameters)           | java.lang.reflect.ParameterizedType  |
+| 泛型父类(Super Classes)        | java.lang.Class#getGenericSuperclass |
+| 泛型接口(Interfaces)           | java.lang.Class#getGenericInterfaces |
+| 泛型声明(Generics Declaration) | java.lang.reflect.GenericDeclaration |
+
+#### GenericTypeResolver
+
+​	Spring 泛型类型辅助类
+
+GenericTypeResolver
+
++	版本支持[2.5.2, )
++	处理类型(Type)相关方法
+  +	resolveReturnType
+  +	resolveTpe
++	处理泛型参数类型(ParameterizedType)相关方法
+  +	resolveReturnTypeArgument
+  +	resolveTypeArgument
+  +	resolveTypeArguments
++	处理泛型类型变量(TypeVariable)相关方法
+  +	getTypeVariableMap
+
+##### GenericCollectionResolver
+
+GenericCollectionResolver
+
++	版本支持[2.5.2, 4.3]
++	替换实现:ResolvableType
++	处理Collection相关
+  +	getCollection*Type
++	处理Map相关
+  +	getMapKey*Type
+  +	getMapValue*Type
+
+#### MethodParamter
+
+​	方法参数的封装，可以是方法，也可以是构造器，只能二选一。
+
+MethodParamter
+
++ 起始版本[2.0, )
++ 元信息
+  + 关联的方法 - Method
+  + 关键的构造器 - Constructor
+  + 构造器或方法参数索引 - parameterIndex
+  + 构造器或方法参数类型 - parameterType
+  + 构造器或方法参数参数名称 - parameterName
+  + 构造器或方法参数泛型类型 - genericParameterType
+  + 所在类 - containingClass
+
+#### ResolvableType
+
+​	Spring4提供的新的泛型解析器。
+
+ResolvableType
+
++ 其实版本[4.0, )
++ 扮演角色：GenericTypeResolver和GenericCollectionResolver的替换者
++ 工厂方法：for*方法
++ 转换方法：as*方法
++ 处理方法：resolve*方法
+
+##### 局限性
+
+	+	无法处理泛型擦写
+	+	无法处理非具体化的ParameterizedType
+
+#### 面试题
+
+ 1. Java泛型擦写发生在编译时还是运行时
+
+    运行时
+
+ 2. Java5Type类型的派生类或接口
+
+    Class、GenericArrayType、ParameterizedType、TypeVariable、WildcardType
+
+ 3. ResolvableType的设计优势
+
+    + 简化Java 5 Type API开发，屏蔽复杂API的运用
+    + 不变性设置(Immutability)
+    + Fluent API设计(Builder模式)，链式(流式)编程
+
 ### 事件
 
 
