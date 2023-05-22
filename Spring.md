@@ -4098,5 +4098,40 @@ ResolvableType
 
 ### 事件
 
+#### Java事件
+
+##### EventObject
+
+```java
+public class EventObject implements java.io.Serializable {
+...
+}
+```
+
+##### EventListener
+
+```java
+public interface EventListener {
+}
+```
+
+##### 设计模型
+
+​	Java中没有提供标准的事件监听实现，而是提供了观察者模式。
+
+```java
+public class Observable {
+    private boolean changed = false;
+	private Vector<Observer> obs;
+    ...
+}
+```
+
+```java
+public interface Observer {
+    void update(Observable o, Object arg);
+}
+```
+
 
 
