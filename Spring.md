@@ -4098,7 +4098,7 @@ ResolvableType
 
 ### 事件
 
-#### Java事件
+#### Java 事件
 
 ##### EventObject
 
@@ -4133,5 +4133,159 @@ public interface Observer {
 }
 ```
 
+#### Spring 事件
+
+##### ApplicationEvent
+
+```java
+public abstract class ApplicationEvent extends EventObject {
+
+	/** System time when the event happened. */
+	private final long timestamp;
+
+	/**
+	 * Create a new {@code ApplicationEvent}.
+	 * @param source the object on which the event initially occurred or with
+	 * which the event is associated (never {@code null})
+	 */
+	public ApplicationEvent(Object source) {
+		super(source);
+		this.timestamp = System.currentTimeMillis();
+	}
+
+	/**
+	 * Return the system time in milliseconds when the event occurred.
+	 */
+	public final long getTimestamp() {
+		return this.timestamp;
+	}
+
+}
+```
+
+​	ApplicationEvent
+
+	+	根据惯例，继承了Java标准事件接口EventObject
+	+	添加了事件发生时间timestamp
+	+	将类声明为抽象类，防止直接使用
+
+​	用户可以继承ApplicationEvent类，自定义Spring事件。
+
+###### ApplicationContextEvent
+
+```java
+public abstract class ApplicationContextEvent extends ApplicationEvent {
+
+	/**
+	 * Create a new ContextStartedEvent.
+	 * @param source the {@code ApplicationContext} that the event is raised for
+	 * (must not be {@code null})
+	 */
+	public ApplicationContextEvent(ApplicationContext source) {
+		super(source);
+	}
+
+	/**
+	 * Get the {@code ApplicationContext} that the event was raised for.
+	 */
+	public final ApplicationContext getApplicationContext() {
+		return (ApplicationContext) getSource();
+	}
+
+}
+```
+
+​	ApplicationContextEvent继承了ApplicationEvent，并将ApplicationContext作为事件来源保存，以便和ApplicationContext交互。
+
+​	ApplicationContextEvent有以下内建事件：
+
+	+	ContextRefreshedEvent：上下文刷新完成事件
+	+	ContextStaredEvent： 上下文启动事件
+	+	ContextStoppedEvent： 上下文停止事件
+	+	ContextClosedEvent： 上下文关闭事件
+
+##### ApplicationListener
+
+```java
+@FunctionalInterface
+public interface ApplicationListener<E extends ApplicationEvent> extends EventListener {
+
+	/**
+	 * Handle an application event.
+	 * @param event the event to respond to
+	 */
+	void onApplicationEvent(E event);
 
 
+	/**
+	 * Create a new {@code ApplicationListener} for the given payload consumer.
+	 * @param consumer the event payload consumer
+	 * @param <T> the type of the event payload
+	 * @return a corresponding {@code ApplicationListener} instance
+	 * @since 5.3
+	 * @see PayloadApplicationEvent
+	 */
+	static <T> ApplicationListener<PayloadApplicationEvent<T>> forPayload(Consumer<T> consumer) {
+		return event -> consumer.accept(event.getPayload());
+	}
+
+}
+```
+
+​	ApplicationListener
+
++ 根据惯例，继承了EventListener
++ 单一类型事件处理
+
+​	用户可以实现ApplicationListener接口，自定义Spring事件监听器。
+
+###### @EventListener
+
+​	除了实现ApplicationListener接口扩展Spring事件监听器外，还可以通过将@EventListener标记到方法上扩展Spring事件监听器。
+
+```java
+@Target({ElementType.METHOD, ElementType.ANNOTATION_TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+public @interface EventListener {
+
+	@AliasFor("classes")
+	Class<?>[] value() default {};
+
+	@AliasFor("value")
+	Class<?>[] classes() default {};
+
+	String condition() default "";
+
+	String id() default "";
+
+}
+```
+
+@EventListener由EventListenerMethodProcessor处理。
+
+1. EventListenerMethodProcessor#processBean会筛选出标记@EventListener的方法
+2. 使用EventListenerFactory#createApplicationListener将方法包装成ApplicationListener(默认DefaultEventListenerFactory，会将方法包装成ApplicationListenerMethodAdapter)
+3. ConfigurableApplicationContext#addApplicationListener将事件监听器注册到应用上下文中
+
+##### ApplicationListener 注册
+
+###### 直接注册
+
+​	ConfigurableApplicationContext#addApplicationListener。@EventListener的注册就属于这种方式，除此之外，还能手动调用该方法注册。
+
+###### 间接注册
+
+​	将ApplicationListener实现类添加到ApplicationContext中，由ApplicationListenerDetector处理(AbstractApplicationContext#prepareBeanFactory阶段添加)。
+
+##### ApplicationListener 执行顺序
+
+​	ApplicationListener 执行顺序由SimpleApplicationEventMulticaster控制，SimpleApplicationEventMulticaster#multicastEvent广播事件时
+
+	1.	SimpleApplicationEventMulticaster会根据发布事件的类型，找到可以处理的事件监听器集合
+	1.	然后对事件监听器集合，根据@PriorityOrdered、@Ordered的阶级进行排序，没有标注这两个注解的取默认最低顺序。
+
+##### ApplicationListener 异步执行
+
++ 使用Async注解，开启@EnableAsync，将标注@Async的类和方法包装一个代理对象，执行时由代理对象将方法提交到线程池中执行。此方式只支持标记@Async的ApplicationListener，其他ApplicationListener依旧同步执行。
++ 设置SimpleApplicationEventMulticaster#setTaskExecutor，这样任何ApplicationListener都可以异步执行
