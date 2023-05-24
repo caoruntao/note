@@ -4278,6 +4278,104 @@ public @interface EventListener {
 
 ​	将ApplicationListener实现类添加到ApplicationContext中，由ApplicationListenerDetector处理(AbstractApplicationContext#prepareBeanFactory阶段添加)。
 
+##### ApplicationEventPublisher
+
+```java
+@FunctionalInterface
+public interface ApplicationEventPublisher {
+
+	/**
+	 * Notify all <strong>matching</strong> listeners registered with this
+	 * application of an application event. Events may be framework events
+	 * (such as ContextRefreshedEvent) or application-specific events.
+	 * <p>Such an event publication step is effectively a hand-off to the
+	 * multicaster and does not imply synchronous/asynchronous execution
+	 * or even immediate execution at all. Event listeners are encouraged
+	 * to be as efficient as possible, individually using asynchronous
+	 * execution for longer-running and potentially blocking operations.
+	 * @param event the event to publish
+	 * @see #publishEvent(Object)
+	 * @see org.springframework.context.event.ContextRefreshedEvent
+	 * @see org.springframework.context.event.ContextClosedEvent
+	 */
+	default void publishEvent(ApplicationEvent event) {
+		publishEvent((Object) event);
+	}
+
+	/**
+	 * Notify all <strong>matching</strong> listeners registered with this
+	 * application of an event.
+	 * <p>If the specified {@code event} is not an {@link ApplicationEvent},
+	 * it is wrapped in a {@link PayloadApplicationEvent}.
+	 * <p>Such an event publication step is effectively a hand-off to the
+	 * multicaster and does not imply synchronous/asynchronous execution
+	 * or even immediate execution at all. Event listeners are encouraged
+	 * to be as efficient as possible, individually using asynchronous
+	 * execution for longer-running and potentially blocking operations.
+	 * @param event the event to publish
+	 * @since 4.2
+	 * @see #publishEvent(ApplicationEvent)
+	 * @see PayloadApplicationEvent
+	 */
+	void publishEvent(Object event);
+
+}
+```
+
+​	Spring事件发布器，在Spring4.2添加了PayloadApplicationEvent事件，通过ApplicationEventPublisher#publishEvent便可将Object包装成PayloadApplicationEvent事件发布。
+
+​	ApplicationContext继承了该接口，ApplicationContext实现类会将事件发布委托给ApplicationEventMulticaster广播。
+
+​	ApplicationEventPublisher注入：
+
++ 通过ApplicationEventPublisherAware回调注入
++ 通过@Autowired依赖注入ApplicationEventPublisher
++ 通过注入ApplicationContext来使用ApplicationEventPublisher
+
+##### ApplicationEventMulticaster
+
+```java
+public interface ApplicationEventMulticaster {
+	void addApplicationListener(ApplicationListener<?> listener);
+
+	void addApplicationListenerBean(String listenerBeanName);
+
+	void removeApplicationListener(ApplicationListener<?> listener);
+
+	void removeApplicationListenerBean(String listenerBeanName);
+
+	void removeApplicationListeners(Predicate<ApplicationListener<?>> predicate);
+
+	void removeApplicationListenerBeans(Predicate<String> predicate);
+
+	void removeAllListeners();
+
+	void multicastEvent(ApplicationEvent event);
+
+	void multicastEvent(ApplicationEvent event, @Nullable ResolvableType eventType);
+
+}
+```
+
+​	Spring事件广播器，真正发布事件的接口，类似于Observable，关联ApplicationListener集合，在广播事件时，找到合适的ApplicationListener进行广播。
+
+###### SimpleApplicationEventMulticaster
+
+```java
+public class SimpleApplicationEventMulticaster extends AbstractApplicationEventMulticaster {
+
+	@Nullable
+	private Executor taskExecutor;
+
+	@Nullable
+	private ErrorHandler errorHandler;
+	
+	...
+}
+```
+
+​	SimpleApplicationEventMulticaster是Spring中ApplicationEventMulticaster的默认实现，taskExecutor使其支持异步处理事件，errorHandler使其具备异常处理的能力。
+
 ##### ApplicationListener 执行顺序
 
 ​	ApplicationListener 执行顺序由SimpleApplicationEventMulticaster控制，SimpleApplicationEventMulticaster#multicastEvent广播事件时
@@ -4289,3 +4387,17 @@ public @interface EventListener {
 
 + 使用Async注解，开启@EnableAsync，将标注@Async的类和方法包装一个代理对象，执行时由代理对象将方法提交到线程池中执行。此方式只支持标记@Async的ApplicationListener，其他ApplicationListener依旧同步执行。
 + 设置SimpleApplicationEventMulticaster#setTaskExecutor，这样任何ApplicationListener都可以异步执行
+
+##### Spring事件传播
+
+​	如果ApplicationContext具有parent ApplicationContext，则ApplicationContext发布的事件，也会发布到parent ApplicationContext，如果ApplicationContext和parent ApplicationContext具有相同的事件监听器，会导致事件重复处理，可通过加标识位解决。
+
+#### 面试题
+
+1. Spring 事件核心接口/组件
+
+   ApplicationEvent、ApplicationListener、ApplicationEventPublishe、ApplicationEventMulticaster
+
+2. Spring 同步和异步事件处理的使用场景
+
+3. @EventListener的工作原理
