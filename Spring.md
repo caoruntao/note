@@ -4401,3 +4401,123 @@ public class SimpleApplicationEventMulticaster extends AbstractApplicationEventM
 2. Spring 同步和异步事件处理的使用场景
 
 3. @EventListener的工作原理
+
+### 注解驱动
+
+#### 发展
+
+##### Spring 1.x
+
+  启蒙时代。Java注解是JDK1.5开始支持，发布于2004年，Spring 1.x是2003年、2004年发布，为了兼容低Java版本，Spring不强制使用JDK1.5。
+
+​	代表注解
+
+	+ org.springframework.transaction.annotation.Transactional
+
+##### Spring 2.x
+
+​	过渡时代。
+
+​	代表注解
+
+	+	org.springframework.stereotype.Repository
+	+	org.springframework.stereotype.Component
+	+	org.springframework.beans.factory.annotation.Autowired
+
+##### Spring 3.x
+
+​	黄金时代。
+
+​	代表注解
+
++ org.springframework.context.annotation.Configuration
++ org.springframework.context.annotation.ComponentScan
++ org.springframework.context.annotation.ImportResource
++ org.springframework.context.annotation.PropertySource
++ org.springframework.scheduling.annotation.Scheduled
++ org.springframework.scheduling.annotation.Async
++ org.springframework.context.annotation.Profile
+
+##### Spring 4.x
+
+​	完善时代。
+
+​	代表注解
+
++ org.springframework.context.annotation.Condition
+
+##### Spring 5.x
+
+​	当下时代
+
+​	代表注解
+
++ org.springframework.stereotype.Indexed
+
+#### 编程模型
+
+##### 元注解（Meta-Annotations）
+
+```
+A meta-annotation is an annotation that is declared on another annotation. An annotation is therefore meta-annotated if it is annotated with another annotation. For example, any annotation that is declared to be documented is meta-annotated with @Documented from the java.lang.annotation package.
+```
+
+代表注解
+
++ java.lang.annotation.Documented
++ java.lang.annotation.Retention：注解信息保留到哪个阶段
++ java.lang.annotation.Target：注解可以标注的范围
++ java.lang.annotation.Inherited：父类上有@Inherited标注的注解，则子类会继承该注解，而无需重复标注
++ java.lang.annotation.Repeatable：JDK8之前一个类同一个注解只能标注，要想标注多个，需要自己另外申明注解。JDK8以后使用该注解可以标注多个，相当于语法糖。
+
+##### 模式注解（Stereotype Annotations）
+
+```
+A stereotype annotation is an annotation that is used to declare the role that a component plays within the application. For example, the @Repository annotation in the Spring Framework is a marker for any class that fulfills the role or stereotype of a repository (also known as Data Access Object or DAO).
+
+@Component is a generic stereotype for any Spring-managed component. Any component annotated with @Component is a candidate for component scanning. Similarly, any component annotated with an annotation that is itself meta-annotated with @Component is also a candidate for component scanning. For example, @Service is meta-annotated with @Component.
+
+Core Spring provides several stereotype annotations out of the box, including but not limited to: @Component, @Service, @Repository, @Controller, @RestController, and @Configuration. @Repository, @Service, etc. are specializations of @Component.
+```
+
+​	@Component的“派生性”。Java中注解没办法进行继承，但是可以通过元标注@Component的方式，使其是@Component元注解的派生。如@Service、@Repository、@Controller、@Configuration，以及更多层级的派生，如@RestController。
+
+###### 派生性处理
+
+```
+```
+
+##### 组合注解(Composed Annotations)
+
+```
+A composed annotation is an annotation that is meta-annotated with one or more annotations with the intent of combining the behavior associated with those meta-annotations into a single custom annotation. For example, an annotation named @TransactionalService that is meta-annotated with Spring's @Transactional and @Service annotations is a composed annotation that combines the semantics of @Transactional and @Service. @TransactionalService is technically also a custom stereotype annotation.
+```
+
+​	注解可以通过元注解标记多个注解，来获取所有标记注解的语义。
+
+代表注解
+
++ @TransactionalService
++ @RestController
++ @SpringBootApplication
+
+##### 注解别名（Attribute Aliases）
+
+```
+An attribute alias is an alias from one annotation attribute to another annotation attribute. Attributes within a set of aliases can be used interchangeably and are treated as equivalent. Attribute aliases can be categorized as follows.
+
+Explicit Aliases: if two attributes in one annotation are declared as aliases for each other via @AliasFor, they are explicit aliases.
+Implicit Aliases: if two or more attributes in one annotation are declared as explicit overrides for the same attribute in a meta-annotation via @AliasFor, they are implicit aliases.
+Transitive Implicit Aliases: given two or more attributes in one annotation that are declared as explicit overrides for attributes in meta-annotations via @AliasFor, if the attributes effectively override the same attribute in a meta-annotation following the law of transitivity, they are transitive implicit aliases.
+```
+
+##### 注解属性覆盖（Attribute Overrides）
+
+```
+An attribute override is an annotation attribute that overrides (or shadows) an annotation attribute in a meta-annotation. Attribute overrides can be categorized as follows.
+
+Implicit Overrides: given attribute A in annotation @One and attribute A in annotation @Two, if @One is meta-annotated with @Two, then attribute A in annotation @One is an implicit override for attribute A in annotation @Two based solely on a naming convention (i.e., both attributes are named A).
+Explicit Overrides: if attribute A is declared as an alias for attribute B in a meta-annotation via @AliasFor, then A is an explicit override for B.
+Transitive Explicit Overrides: if attribute A in annotation @One is an explicit override for attribute B in annotation @Two and B is an explicit override for attribute C in annotation @Three, then A is a transitive explicit override for C following the law of transitivity.
+```
+
