@@ -4521,3 +4521,106 @@ Explicit Overrides: if attribute A is declared as an alias for attribute B in a 
 Transitive Explicit Overrides: if attribute A in annotation @One is an explicit override for attribute B in annotation @Two and B is an explicit override for attribute C in annotation @Three, then A is a transitive explicit override for C following the law of transitivity.
 ```
 
+##### @Enable 模块驱动编程模式
+
++ 驱动注解：@EnableXXX
++ 导入注解：@Import具体实现
++ 具体实现：
+  + 基于Configuration Class
+  + 基于ImportSelector 接口实现
+  + 基于ImportBeanDefinitionRegistart 接口实现
++ 实现原理：
+  + ConfigurationClassParser#processImports会处理@Import注解导入的具体实现
+
+###### @EnableAutoConfiguration
+
+​	@EnableAutoConfiguration代表开启自动装配，@SpringBootApplication标注了@EnableAutoConfiguration注解。
+
+​	所以Spring Boot项目在启动时，@EnableAutoConfiguration导入的AutoConfigurationImportSelector会去META-INF/spring.factories加载EnableAutoConfiguration对应的values，这样values对应的类会被自动加载到Spring上下文中，完成自动装配。
+
+##### 条件注解(Conditional)
+
+​	条件注解允许Spring上下文启动时根据条件去决定是否导入Bean。
+
++ 基于配置条件注解 -@ Profile
+
+  + 关联对象 - Environment中的Profiles
+  + 实现变化： 从Spring4.0开始，@Profile基于@Conditional实现
+
+  ```java
+  @Target({ElementType.TYPE, ElementType.METHOD})
+  @Retention(RetentionPolicy.RUNTIME)
+  @Documented
+  @Conditional(ProfileCondition.class)
+  public @interface Profile {
+  
+  	/**
+  	 * The set of profiles for which the annotated component should be registered.
+  	 */
+  	String[] value();
+  
+  }
+  ```
+
+  ```java
+  class ProfileCondition implements Condition {
+  
+  	@Override
+  	public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
+  		MultiValueMap<String, Object> attrs = metadata.getAllAnnotationAttributes(Profile.class.getName());
+  		if (attrs != null) {
+  			for (Object value : attrs.get("value")) {
+  				if (context.getEnvironment().acceptsProfiles(Profiles.of((String[]) value))) {
+  					return true;
+  				}
+  			}
+  			return false;
+  		}
+  		return true;
+  	}
+  
+  }
+  ```
+
++ 基于变成条件注解 - @Conditional
+  + 关联对象 - Condtion具体实现
+  + 实现原理 
+    + 上下文对象：ConditionContext
+    + 条件判断：ConditionEvaluator
+    + 配置阶段：ConfigurationPhase
+    + 判断入口：
+      + ConfigurationClassPostProcessor：BeanDefinitionRegistryPostProcessor，对注册的BeanDefinition做一些后置处理
+      + ConfigurationClassParser：将标注@Configuration的Bean扫描，封装成ConfigurationClass，并根据Condition决定是否跳过处理
+      + ConfigurationClassBeanDefinitionReader：从ConfigurationClass中加载BeanDefinition
+      + ConditionEvaluator： 评估ConfigurationClass(标注@Configuration的类)/BeanMethod(标注@Bean的方法)是否应该被跳过
+
+##### 面试题
+
+1. 模式注解有哪些
+
+   Component、Repository、Service、Controller、Configuration
+
+2. @EventListener的工作原理
+
+   1. 在所有Bean完成初始化时，遍历Bean中是否含有@EventListener标注的方法
+   2. 将@EventListener标注的方法封装成ApplicationListener
+
+   ```
+   EventListenerMethodProcessor(SmartInitializingSingleton):
+   	#postProcessBeanFactory: 查找EventListenerFactory的实现
+   	#afterSingletonsInstantiated: 所有Bean完成初始化时的后置操作
+   		#processBean: 
+   			MethodIntrospector#selectMethods: 筛选含有@EventListener标注的方法
+   			EventListenerFactory#createApplicationListener: 将@EventListener标注的方法封装成ApplicationListener
+   			ConfigurableApplicationContext#addApplicationListener: 将ApplicationListener注册到Spring上下文中
+   ```
+
+   ```
+   AnnotationConfigApplicationContext: 注解驱动相关的上下文，会生成
+   	AnnotatedBeanDefinitionReader: 注解相关的BeanDefinitionReader
+   		AnnotationConfigUtils#registerAnnotationConfigProcessors: 会注册一系列和注解处理相关的Bean，EventListenerMethodProcessor和DefaultEventListenerFactory就是在此时注入的
+   ```
+
+   
+
+3. @PropertySource的工作原理
