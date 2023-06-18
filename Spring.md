@@ -4624,3 +4624,115 @@ Transitive Explicit Overrides: if attribute A in annotation @One is an explicit 
    
 
 3. @PropertySource的工作原理
+
+### Environment
+
+org.springframework.core.env.Environment
+
+#### 使用场景
+
++ 属性占位符处理(@Value)
++ 转换Spring配置属性类型
++ 存储Spring配置属性源(PropertySource)
++ Profiles管理(@Profile)
+
+```java
+public interface Environment extends PropertyResolver {
+    // 获取已激活的Profiles
+	String[] getActiveProfiles();
+
+    // 获取默认的Profiles
+	String[] getDefaultProfiles();
+
+    // 查看Profile是否已激活
+	boolean acceptsProfiles(Profiles profiles);
+}
+```
+
+```java
+public interface PropertyResolver {
+	@Nullable
+    // 获取属性配置，带有类型转换
+	<T> T getProperty(String key, Class<T> targetType);
+
+    // 占位符处理
+	String resolvePlaceholders(String text);
+}
+```
+
+```java
+public interface ConfigurableEnvironment extends Environment, ConfigurablePropertyResolver {
+    // 设置激活的profiles
+	void setActiveProfiles(String... profiles);
+
+	// 设置默认的profiles
+	void setDefaultProfiles(String... profiles);
+
+	// 获取PropertySources(属性配置源集合)
+	MutablePropertySources getPropertySources();
+}
+```
+
+#### 占位符处理
+
++ Spring 3.1 前占位符处理
+  + 组件 - PropertyPlaceholderConfigurer
+  + 接口 - StringValueResolver
++ Spring 3.1 后占位符处理
+  + 组件 - PropertySourcesPlaceholderConfigurer
+  + 接口 - EmbeddedValueResolver
+
+##### 实现原理
+
+#### Profile管理
+
++ Spring 3.1 条件配置
+
+  + API：ConfigurableEnvironment
+    + 修改：setActiveProfiles、addActiveProfile、setDefaultProfiles
+    + 获取：getActiveProfiles、getDefaultProfiles
+    + 匹配：acceptsProfiles
+  + 注解： @Profile
+
++ Spring 4 重构@Profile
+
+  ```java
+  @Target({ElementType.TYPE, ElementType.METHOD})
+  @Retention(RetentionPolicy.RUNTIME)
+  @Documented
+  @Conditional(ProfileCondition.class)
+  public @interface Profile {
+  
+  	/**
+  	 * The set of profiles for which the annotated component should be registered.
+  	 */
+  	String[] value();
+  
+  }
+  ```
+
+  ```java
+  class ProfileCondition implements Condition {
+  
+  	@Override
+  	public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
+  		MultiValueMap<String, Object> attrs = metadata.getAllAnnotationAttributes(Profile.class.getName());
+  		if (attrs != null) {
+  			for (Object value : attrs.get("value")) {
+  				if (context.getEnvironment().acceptsProfiles(Profiles.of((String[]) value))) {
+  					return true;
+  				}
+  			}
+  			return false;
+  		}
+  		return true;
+  	}
+  
+  }
+  ```
+
+  
+
+#### 配置属性类型转换
+
+#### PropertySource管理
