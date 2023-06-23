@@ -4673,6 +4673,22 @@ public interface ConfigurableEnvironment extends Environment, ConfigurableProper
 }
 ```
 
+#### 依赖查找/注入
+
+###### 依赖查找
+
++ 直接查找：在IoC容器中查找 Environment Bean，使用ConfigurableApplicationContext#ENVIRONMENT_BEAN_NAME
++ 简介查找：在IoC容器中查找 ApplicationContext Bean，ApplicationContext继承了EnvironmentCapable，可通过EnvironmentCapable#getEnvironment获取
+
+###### 依赖注入
+
+	+	直接注入：通过构造器注入、Setter方法注入、@Autowired、@Resource等方式注入Environment Bean
+	+	间接注入： 通过构造器注入、Setter方法注入、@Autowired、@Resource等方式注入ApplicationContext Bean
+	+	回调直接注入：实现EnvironmentAware接口，通过EnvironmentAware#setEnvironment接收Environment Bean
+	+	回调间接注入：实现ApplicationContextAware接口，通过ApplicationContextAware#setApplicationContext接收ApplicationContext Bean
+
+​	回调注入由ApplicationContextAwareProcessor处理，会在AbstractApplicationContext#prepareBeanFactory阶段添加。
+
 #### 占位符处理
 
 + Spring 3.1 前占位符处理
@@ -4683,6 +4699,86 @@ public interface ConfigurableEnvironment extends Environment, ConfigurableProper
   + 接口 - EmbeddedValueResolver
 
 ##### 实现原理
+
+​	AbstractEnvironment在创建时会新建PropertySourcesPropertyResolver实例，实例被委托去 处理占位符，PropertySourcesPropertyResolver是基于PropertySources的属性处理器，当其中的PropertyPlaceholderHelper处理完前后缀等信息，获取真正的占位符后，会从PropertySource中根据key查找对应的value返回。
+
+```java
+public abstract class AbstractEnvironment implements ConfigurableEnvironment {
+	public AbstractEnvironment() {
+		this(new MutablePropertySources());
+	}
+
+	protected AbstractEnvironment(MutablePropertySources propertySources) {
+		this.propertySources = propertySources;
+		this.propertyResolver = createPropertyResolver(propertySources);
+		customizePropertySources(propertySources);
+	}
+    
+    protected ConfigurablePropertyResolver createPropertyResolver(MutablePropertySources propertySources) {
+		return new PropertySourcesPropertyResolver(propertySources);
+	}
+}
+```
+
+```java
+public class PropertySourcesPropertyResolver extends AbstractPropertyResolver {
+
+	@Nullable
+	private final PropertySources propertySources;
+	
+	protected String getPropertyAsRawString(String key) {
+		return getProperty(key, String.class, false);
+	}
+
+	@Nullable
+	protected <T> T getProperty(String key, Class<T> targetValueType, boolean resolveNestedPlaceholders) {
+		if (this.propertySources != null) {
+			for (PropertySource<?> propertySource : this.propertySources) {
+				if (logger.isTraceEnabled()) {
+					logger.trace("Searching for key '" + key + "' in PropertySource '" +
+							propertySource.getName() + "'");
+				}
+				Object value = propertySource.getProperty(key);
+				if (value != null) {
+					if (resolveNestedPlaceholders && value instanceof String) {
+						value = resolveNestedPlaceholders((String) value);
+					}
+					logKeyFound(key, propertySource, value);
+					return convertValueIfNecessary(value, targetValueType);
+				}
+			}
+		}
+		if (logger.isTraceEnabled()) {
+			logger.trace("Could not find key '" + key + "' in any property source");
+		}
+		return null;
+	}
+    
+}
+```
+
+```java
+public abstract class AbstractPropertyResolver implements ConfigurablePropertyResolver {
+	@Override
+	public String resolvePlaceholders(String text) {
+		if (this.nonStrictHelper == null) {
+			this.nonStrictHelper = createPlaceholderHelper(true);
+		}
+		return doResolvePlaceholders(text, this.nonStrictHelper);
+	}
+    
+    private PropertyPlaceholderHelper createPlaceholderHelper(boolean ignoreUnresolvablePlaceholders) {
+		return new PropertyPlaceholderHelper(this.placeholderPrefix, this.placeholderSuffix,
+				this.valueSeparator, ignoreUnresolvablePlaceholders);
+	}
+	
+	private String doResolvePlaceholders(String text, PropertyPlaceholderHelper helper) {
+		return helper.replacePlaceholders(text, this::getPropertyAsRawString);
+	}
+}
+```
+
+
 
 #### Profile管理
 
@@ -4735,4 +4831,54 @@ public interface ConfigurableEnvironment extends Environment, ConfigurableProper
 
 #### 配置属性类型转换
 
+##### 类型转换
+
+```
+AbstractEnvironment#getProperty(String, Class<T>):
+	PropertySourcesPropertyResolver#getProperty(String, Class<T>):
+		AbstractPropertyResolver#resolveNestedPlaceholders: 处理占位符，如果不是占位符不处理
+			AbstractPropertyResolver#convertValueIfNecessary: 类型转换
+				ConversionService#convert: 类型转换
+```
+
+​	由处理过程可知，Environment类型转换仅使用了ConversionService，而不是像TypeConverterDelegate使用ConversionService和PropertyEditor。
+
+##### @Value处理
+
+​	@Value允许我们使用占位符等方式依赖注入 配置属性，由AutowiredAnnotationBeanPostprocessor处理
+
+```
+AutowiredAnnotationBeanPostProcessor#postProcessProperties: Bean创建时进行依赖注入的处理入口
+	#findAutowiringMetadata: 查找需要依赖注入的元信息
+		#buildAutowiringMetadata: 如果找不到，则需要构建依赖注入元信息。通过反射获取字段和方法，筛选标记autowiredAnnotationTypes集合中的注解，包括@Autowired、@Value，封装成.InjectedElement，并将所有的InjectedElement合并成InjectionMetadata。
+	InjectionMetadata#inject: 
+		AutowiredFieldElement#inject: @Value一般标记在字段上
+			AutowiredAnnotationBeanPostProcessor.AutowiredFieldElement#resolveFieldValue:
+				AutowireCapableBeanFactory#resolveDependency	
+				返回值，结束
+```
+
+```
+DefaultListableBeanFactory#resolveDependency: 解析依赖，类型包括Optional、ObjectFactory、Provider和Spring Bean
+	#doResolveDependency:
+		QualifierAnnotationAutowireCandidateResolver#getSuggestedValue: 
+			 #findValue: 获取@Value中的value值
+		AbstractBeanFactory#resolveEmbeddedValue: 如果@Value中的value值为String，则进行内嵌值处理(占位符、SPEL等)
+			StringValueResolver#resolveStringValue: 
+				// 在AbstractApplicationContext#finishBeanFactoryInitialization阶段，会使用lamdba表达式将Environment#resolvePlaceholders添加到BeanFactory当作StringValueResolver
+				Environment#resolvePlaceholders: 后续流程参考Environment占位符处理
+		TypeConverter#convertIfNecessary: 使用类型转换对值进行转换
+		返回值，结束
+```
+
+​	AutowireCandidateResolver：依赖注入候选者处理器
+
 #### PropertySource管理
+
+​	AbstractEnvironment#getPropertySources: 获取MutablePropertySources，对MutablePropertySources进行新增、删除PropertySource。
+
+##### API - PropertySource
+
+##### 注解 - @PropertySource
+
+##### Spring 内建PropertySource
