@@ -4879,6 +4879,117 @@ DefaultListableBeanFactory#resolveDependency: 解析依赖，类型包括Optiona
 
 ##### API - PropertySource
 
+​	MutablePropertySources#addFirst等方法
+
 ##### 注解 - @PropertySource
 
+```java
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Repeatable(PropertySources.class)
+public @interface PropertySource {
+
+	/**
+	 * Indicate the name of this property source. If omitted, the {@link #factory}
+	 * will generate a name based on the underlying resource (in the case of
+	 * {@link org.springframework.core.io.support.DefaultPropertySourceFactory}:
+	 * derived from the resource description through a corresponding name-less
+	 * {@link org.springframework.core.io.support.ResourcePropertySource} constructor).
+	 * @see org.springframework.core.env.PropertySource#getName()
+	 * @see org.springframework.core.io.Resource#getDescription()
+	 */
+	String name() default "";
+
+	/**
+	 * Indicate the resource location(s) of the properties file to be loaded.
+	 * <p>Both traditional and XML-based properties file formats are supported
+	 * &mdash; for example, {@code "classpath:/com/myco/app.properties"}
+	 * or {@code "file:/path/to/file.xml"}.
+	 * <p>Resource location wildcards (e.g. *&#42;/*.properties) are not permitted;
+	 * each location must evaluate to exactly one {@code .properties} or {@code .xml}
+	 * resource.
+	 * <p>${...} placeholders will be resolved against any/all property sources already
+	 * registered with the {@code Environment}. See {@linkplain PropertySource above}
+	 * for examples.
+	 * <p>Each location will be added to the enclosing {@code Environment} as its own
+	 * property source, and in the order declared.
+	 */
+	String[] value();
+
+	/**
+	 * Indicate if a failure to find a {@link #value property resource} should be
+	 * ignored.
+	 * <p>{@code true} is appropriate if the properties file is completely optional.
+	 * <p>Default is {@code false}.
+	 * @since 4.0
+	 */
+	boolean ignoreResourceNotFound() default false;
+
+	/**
+	 * A specific character encoding for the given resources, e.g. "UTF-8".
+	 * @since 4.3
+	 */
+	String encoding() default "";
+
+	/**
+	 * Specify a custom {@link PropertySourceFactory}, if any.
+	 * <p>By default, a default factory for standard resource files will be used.
+	 * @since 4.3
+	 * @see org.springframework.core.io.support.DefaultPropertySourceFactory
+	 * @see org.springframework.core.io.support.ResourcePropertySource
+	 */
+	Class<? extends PropertySourceFactory> factory() default PropertySourceFactory.class;
+
+}	
+```
+
+​	可以使用factory指定自定义的PropertySourceFactory来实现自定义格式文件的加载，如yml文件。并且可以使用encoding指定文件编码格式。
+
+###### 实现原理
+
+@PropertySource处理过程
+
+```
+ConfigurationClassParser#parse:
+	#processConfigurationClass:
+		#doProcessConfigurationClass:
+			#processPropertySource:
+				#获取并实例化factory指定的PropertySourceFactory
+				#通过资源加载器加载资源
+				#将资源装潢成带有编码的资源，然后通过PropertySourceFactory创建PropertySource，并且添加到ApplicationContext
+```
+
+
+
 ##### Spring 内建PropertySource
+
+| PropertySource类型              | 说明                      |
+| ------------------------------- | ------------------------- |
+| CommandLinePropertySource       | 命令行 配置属性源         |
+| JndiPropertySource              | JNDI 配置属性源           |
+| PropertiesPropertySource        | Properties 配置属性源     |
+| ServletConfigPropertySource     | Servlet 配置属性源        |
+| ServletContextPropertySource    | ServletContext 配置属性源 |
+| SystemEnvironmentPropertySource | 系统环境 配置属性源       |
+| ...                             |                           |
+
+##### 测试配置属性源 - @TestPropertySource
+
+​	优先级很高，一般用于测试。
+
+#### 面试题
+
+1. ​	简单介绍Spring Environment接口
+
+   继承于PropertyResolver，具有获取配置属性、类型转换、占位符处理的功能。
+
+   本身具有获取profile的功能。
+
+   子接口ConfigurableEnvironment可以获取MutablePropertySources，并且配置Profile和PropertySource。
+
+2. 如果控制PropertySource的优先级
+
+   PropertySource在MutablePropertySources中的顺序就是优先级。
+
+3. Environment的生命周期
