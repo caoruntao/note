@@ -4993,3 +4993,66 @@ ConfigurationClassParser#parse:
    PropertySource在MutablePropertySources中的顺序就是优先级。
 
 3. Environment的生命周期
+
+### ApplicationContext生命周期
+
+#### 启动阶段
+
+```
+AbstractApplicationContext#refresh
+  #prepareRefresh
+    记录启动时间
+    设置启动状态
+    初始化PropertySource
+      子类扩展
+    Environment验证必须存在的Properties是否存在
+    初始化早期监听器集合和早期事件集合
+  #obtainFreshBeanFactory
+    如果有BeanFactory，则关闭
+    创建DefaultListableBeanFactory
+    加载BeanDefinition
+  #prepareBeanFactory
+    设置BeanFactory中的ClassLoader
+    注册Resource相关的PropertyEditor
+    添加ApplicationContextAwarePropcesor
+    忽略Aware接口的依赖注入
+    添加ResolvableDepency
+    添加ApplicationListenerDetector
+    注册Environment
+  #postProcessBeanFactory
+    子类可以重写该方法对BeanFactory进行自定义操作
+  #invokeBeanFactoryPostProcessors
+    查找ApplicationContext添加的BeanDefinitionRegistryPostProcessor和BeanFactoryPostProcessor
+      根据ApplicationContext添加顺序执行BeanDefinitionRegistryPostProcessor和BeanFactoryPostProcessor
+    查找BeanFactory中注册的BeanDefinitionRegistryPostProcessor和BeanFactoryPostProcessor
+      根据PriorityOrdered、Ordered、以及没有Ordered注解的进行分级，分级并且排序后，然后按分级、排序执行
+  #registerBeanPostProcessors
+    查找BeanFactory中注册的BeanPostProcessor
+      根据PriorityOrdered、Ordered、以及没有Ordered注解的进行分级，分级并且排序后，然后按分级、排序进行注册
+  #initMessageSource
+    如果BeanFactory中没有MESSAGE_SOURCE_BEAN_NAME, MessourceSource类型的Bean
+    则会新建一个DelegatingMessourceSource，里面没有任何国际化相关的文案
+  #initApplicationEventMulticaster
+    如果BeanFactory中没有APPLICATION_EVENT_MULTICASTER_BEAN_NAME, ApplicationEventMulticaster类型的Bean
+    则会新建一个SimpleApplicationEventMulticaster
+  #onRefresh
+    留给子类实现
+  #registerListeners
+    查找ApplicationContext添加的ApplicationListener
+      根据添加顺序将ApplicationListener注册到BeanFactory中
+    查找BeanFactory中注册的ApplicationListener
+      根据Bean注册顺序添加
+    发布早期事件
+  #finishBeanFactoryInitialization
+    BeanFactory添加ConversionService
+    添加EmbeddedValueResolver
+    冻结配置
+    实例化BeanFactory中的Bean
+      调用SmartInitializingSingleton#afterSingletonsInstantiated
+  #finishRefresh  
+    清空Resource缓存
+    注册LifecycleProcessor
+    调用LifeCycle#onRefresh
+    发布ApplicationContextRefreshed事件
+```
+
