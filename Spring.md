@@ -5056,3 +5056,31 @@ AbstractApplicationContext#refresh
     发布ApplicationContextRefreshed事件
 ```
 
+#### start
+
+​	org.springframework.context.Lifecycle#start
+
+#### stop
+
+​	org.springframework.context.Lifecycle#stop
+
+#### 关闭阶段
+
+```
+AbstractApplicationContext#close
+  #doClose
+    #publishEvent(new ContextClosedEvent(this))
+      发布上下文关闭事件(ContextClosedEvent)
+    #LifecycleProcessor#onClose
+      Lifecycle处理
+    #destroyBeans
+      销毁单例
+    #closeBeanFactory
+      关闭BeanFactory
+    #onClose
+      留给子类实现
+    #清空早期监听器集合
+    #设置状态
+  #移除shutdownHook
+```
+
