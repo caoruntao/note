@@ -5084,3 +5084,99 @@ AbstractApplicationContext#close
   #移除shutdownHook
 ```
 
+### 其他
+
+#### ObjectFactory
+
+提供延迟依赖查找
+
+```java
+public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFactory
+		implements ConfigurableListableBeanFactory, BeanDefinitionRegistry, Serializable {
+		@Override
+        @Nullable
+        public Object resolveDependency(DependencyDescriptor descriptor, @Nullable String requestingBeanName,
+                @Nullable Set<String> autowiredBeanNames, @Nullable TypeConverter typeConverter) throws BeansException {
+
+            descriptor.initParameterNameDiscovery(getParameterNameDiscoverer());
+            if (Optional.class == descriptor.getDependencyType()) {
+                return createOptionalDependency(descriptor, requestingBeanName);
+            }
+            else if (ObjectFactory.class == descriptor.getDependencyType() ||
+                    ObjectProvider.class == descriptor.getDependencyType()) {
+                return new DependencyObjectProvider(descriptor, requestingBeanName);
+            }
+            else if (javaxInjectProviderClass == descriptor.getDependencyType()) {
+                return new Jsr330Factory().createDependencyProvider(descriptor, requestingBeanName);
+            }
+            else {
+                Object result = getAutowireCandidateResolver().getLazyResolutionProxyIfNecessary(
+                        descriptor, requestingBeanName);
+                if (result == null) {
+                    result = doResolveDependency(descriptor, requestingBeanName, autowiredBeanNames, typeConverter);
+                }
+                return result;
+            }
+            
+            ...
+	}
+```
+
+```java
+private class DependencyObjectProvider implements BeanObjectProvider<Object> {
+
+		private final DependencyDescriptor descriptor;
+
+		private final boolean optional;
+
+		@Nullable
+		private final String beanName;
+
+		public DependencyObjectProvider(DependencyDescriptor descriptor, @Nullable String beanName) {
+			this.descriptor = new NestedDependencyDescriptor(descriptor);
+			this.optional = (this.descriptor.getDependencyType() == Optional.class);
+			this.beanName = beanName;
+		}
+		
+		...
+
+		@Override
+		public Object getObject() throws BeansException {
+			if (this.optional) {
+				return createOptionalDependency(this.descriptor, this.beanName);
+			}
+			else {
+				Object result = doResolveDependency(this.descriptor, this.beanName, null, null);
+				if (result == null) {
+					throw new NoSuchBeanDefinitionException(this.descriptor.getResolvableType());
+				}
+				return result;
+			}
+		}
+}
+```
+
+​	只有调用ObjectFactory#getObject获取Bean时才会触发依赖查找，因此属于延迟依赖查找。
+
+​	延迟依赖查找和延迟初始化不同
+
+	+	延迟依赖查找：Bean已经初始化完成，只是没有去查找使用。ApplicationContext在refresh时会将所有的singleton Bean全部初始化，除非标注@Lazy注解。
+	+	延迟初始化：标注@Lazy的Bean在ApplicationContext在refresh时也不会初始化，除非在查找使用时才会初始化。
+
+#### @Bean处理
+
+```
+ConfigurationClassParser#parse:
+	#processConfigurationClass:
+		#doProcessConfigurationClass:
+			#retrieveBeanMethodMetadata: 检索标记@Bean的Method
+			将@Bean的Method变成BeanMethod
+
+
+ConfigurationClassBeanDefinitionReader#loadBeanDefinitions:
+	#loadBeanDefinitionsForConfigurationClass:
+		#loadBeanDefinitionsForBeanMethod:
+			封装成ConfigurationClassBeanDefinition。如果是static方法，指定方法所在class和方法，如果是实例方法，指定Bean和方法。
+				
+```
+
