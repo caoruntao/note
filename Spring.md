@@ -5180,3 +5180,22 @@ ConfigurationClassBeanDefinitionReader#loadBeanDefinitions:
 				
 ```
 
+#### 循环依赖处理
+
+当Bean A和Bean B相互依赖时，成为循环依赖。循环依赖处理需要BeanFactory开启allowCircularReferences，并且Bean A和Bean B都不是构造器注入，BeanFactory借助singletonObjects、earlySingletonObjects、singletonFactories解决循环依赖。
+
+```
+Bean A实例化
+	如果开启allowCircularReferences，则会添加Bean A的singletonFactory，用于获取早期代理对象
+	依赖处理：开始注入Bean B
+		触发Bean B实例化
+			如果开启allowCircularReferences，则会添加Bean A的singletonFactory，用于获取早期代理对象
+			依赖处理：开始注入Bean A
+				从singletonObjects、earlySingletonObjects、singletonFactories中依次查找，最终从singletonFactories获取早期代理对象，并添加到earlySingletonObjects
+				     注入Bean A
+			Bean B完成初始化
+		注入Bean B
+		Bean A初始化完成
+		如果earlySingletonObjects中有自己(Bean A)的早期代理对象，则取出来代替自己返回
+```
+
