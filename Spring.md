@@ -168,7 +168,7 @@ JUC：Executor、Lock
 
 7
 
-Diamond语法：List<String> list = new ArrayList<>(); 可以省略第二个<>中的类型。
+Diamond语法：List\<String> list = new ArrayList<>(); 可以省略第二个<>中的类型。
 
 多Cathch/Try resouce语法糖：AutoCloseable
 
@@ -444,10 +444,10 @@ beanInfo.getMethodDescriptors();
   +	实时查找：org.springframework.beans.factory.BeanFactory#getBean(java.lang.String)
 + 按Bean类型查找
 
-  + 单个Bean对象：org.springframework.beans.factory.BeanFactory#getBean(java.lang.Class<T>)
-  + 集合Bean对象：org.springframework.beans.factory.ListableBeanFactory#getBeansOfType(java.lang.Class<T>)
-  + 延迟查找：org.springframework.beans.factory.BeanFactory#getBeanProvider(java.lang.Class<T>)
-+ 按Bean名称+类型查找：org.springframework.beans.factory.BeanFactory#getBean(java.lang.String, java.lang.Class<T>)
+  + 单个Bean对象：org.springframework.beans.factory.BeanFactory#getBean(java.lang.Class\<T>)
+  + 集合Bean对象：org.springframework.beans.factory.ListableBeanFactory#getBeansOfType(java.lang.Class\<T>)
+  + 延迟查找：org.springframework.beans.factory.BeanFactory#getBeanProvider(java.lang.Class\<T>)
++ 按Bean名称+类型查找：org.springframework.beans.factory.BeanFactory#getBean(java.lang.String, java.lang.Class\<T>)
 + 根据Java注解查找
   + 单个Bean对象：org.springframework.beans.factory.ListableBeanFactory#findAnnotationOnBean
   + 集合Bean对象：org.springframework.beans.factory.ListableBeanFactory#getBeansWithAnnotation
@@ -476,11 +476,11 @@ beanInfo.getMethodDescriptors();
 + 按Bean类型查找
 
   + 实时查找
-    + org.springframework.beans.factory.BeanFactory#getBean(java.lang.Class<T>)
+    + org.springframework.beans.factory.BeanFactory#getBean(java.lang.Class\<T>)
   + 延迟查找
-    + org.springframework.beans.factory.BeanFactory#getBeanProvider(java.lang.Class<T>)
+    + org.springframework.beans.factory.BeanFactory#getBeanProvider(java.lang.Class\<T>)
     + org.springframework.beans.factory.BeanFactory#getBeanProvider(org.springframework.core.ResolvableType)
-+ 按Bean名称+类型查找：org.springframework.beans.factory.BeanFactory#getBean(java.lang.String, java.lang.Class<T>)
++ 按Bean名称+类型查找：org.springframework.beans.factory.BeanFactory#getBean(java.lang.String, java.lang.Class\<T>)
 + 按Bean名称+注解：org.springframework.beans.factory.ListableBeanFactory#findAnnotationOnBean
 
 #### 集合类型依赖查找 - ListableBeanFactory
@@ -490,7 +490,7 @@ beanInfo.getMethodDescriptors();
     + org.springframework.beans.factory.ListableBeanFactory#getBeanNamesForType(org.springframework.core.ResolvableType)
     + Spring 4.2引入：org.springframework.beans.factory.ListableBeanFactory#getBeanNamesForType(org.springframework.core.ResolvableType) 
   + 获取同类型Bran实例列表
-    + org.springframework.beans.factory.ListableBeanFactory#getBeansOfType(java.lang.Class<T>)
+    + org.springframework.beans.factory.ListableBeanFactory#getBeansOfType(java.lang.Class\<T>)
 
 + 通过注解类型查找
   + 获取标注类型Bean名称列表
@@ -517,7 +517,7 @@ beanInfo.getMethodDescriptors();
 
   + 根据Bean类型查找实例列表
 
-    + org.springframework.beans.factory.BeanFactoryUtils#beansOfTypeIncludingAncestors(org.springframework.beans.factory.ListableBeanFactory, java.lang.Class<T>)
+    + org.springframework.beans.factory.BeanFactoryUtils#beansOfTypeIncludingAncestors(org.springframework.beans.factory.ListableBeanFactory, java.lang.Class\<T>)
 
   + 根据注解查找名称列表
 
@@ -1434,7 +1434,7 @@ AbstractBeanFactory#resolveBeanClass:
    +	通过FactoryBean，实现org.springframework.beans.factory.FactoryBean，然后注册到IoC容器中。
  + 特殊方式
 
-   +	通过ServiceLoaderFactoryBean，注册org.springframework.beans.factory.serviceloader.AbstractServiceLoaderBasedFactoryBean的派生类，指定serviceType。Spring会通过java.util.ServiceLoader#load(java.lang.Class<S>)去加载serviceType对应的实例。
+   +	通过ServiceLoaderFactoryBean，注册org.springframework.beans.factory.serviceloader.AbstractServiceLoaderBasedFactoryBean的派生类，指定serviceType。Spring会通过java.util.ServiceLoader#load(java.lang.Class\<S>)去加载serviceType对应的实例。
    +	通过org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory#createBean(java.lang.Class\<T>)
    +	通过org.springframework.beans.factory.support.BeanDefinitionRegistry#registerBeanDefinition
 
