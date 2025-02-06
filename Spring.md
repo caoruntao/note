@@ -1435,7 +1435,7 @@ AbstractBeanFactory#resolveBeanClass:
  + 特殊方式
 
    +	通过ServiceLoaderFactoryBean，注册org.springframework.beans.factory.serviceloader.AbstractServiceLoaderBasedFactoryBean的派生类，指定serviceType。Spring会通过java.util.ServiceLoader#load(java.lang.Class<S>)去加载serviceType对应的实例。
-   +	通过org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory#createBean(java.lang.Class<T>)
+   +	通过org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory#createBean(java.lang.Class\<T>)
    +	通过org.springframework.beans.factory.support.BeanDefinitionRegistry#registerBeanDefinition
 
 ##### 实例化前
